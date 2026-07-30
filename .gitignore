@@ -7,4 +7,5 @@ venv/
 *.egg-info/
 .DS_Store
 Thumbs.db
-data/
+/data/
+source_index/m1_sample_20_local.csv
