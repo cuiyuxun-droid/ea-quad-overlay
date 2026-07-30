@@ -1,0 +1,14 @@
+{
+  "ea_id": "EAQ000001",
+  "segment_id": "EAQ000001_seg001",
+  "modality": "text",
+  "shape": [
+    384
+  ],
+  "dtype": "float32",
+  "feature_path": "features/text/EAQ000001_seg001_text.npy",
+  "model": "intfloat/multilingual-e5-small",
+  "status": "ok",
+  "text_len": 7,
+  "elapsed_sec": 0.0401
+}

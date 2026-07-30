@@ -1,0 +1,15 @@
+{
+  "ea_id": "EAQ000009",
+  "segment_id": "EAQ000009_seg001",
+  "modality": "macro",
+  "shape": [
+    512
+  ],
+  "dtype": "float32",
+  "feature_path": "features/macro/EAQ000009_seg001_macro.npy",
+  "model": "torchvision/resnet18_imagenet_face_embedding",
+  "status": "no_face",
+  "face_detect_rate": 0.0,
+  "frames_sampled": 4,
+  "elapsed_sec": 0.2391
+}
