@@ -8,4 +8,5 @@ venv/
 .DS_Store
 Thumbs.db
 /data/
+*.pt
 source_index/m1_sample_20_local.csv
