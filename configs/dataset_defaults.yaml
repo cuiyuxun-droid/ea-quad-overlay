@@ -1,0 +1,69 @@
+# ============================================================================
+# EA-Quad-Overlay — Dataset Configuration Defaults
+# ============================================================================
+# Per-dataset settings: paths, sample rates, feature parameters, etc.
+# Override individual fields via CLI or per-run YAML (e.g. configs/run_v1.yaml)
+
+defaults:
+  output_root: "./outputs"
+  overwrite: false
+  n_jobs: 4
+  seed: 42
+
+datasets:
+  ch_sims:
+    base_path: "/path/to/CH-SIMS"
+    language: "zh"
+    modalities: ["text", "audio", "video"]
+    # Fields specific to CH-SIMS
+    text:
+      tokenizer: "bert-base-chinese"
+    audio:
+      sample_rate: 16000
+    video:
+      fps: 30
+
+  meld:
+    base_path: "/path/to/MELD"
+    language: "en"
+    modalities: ["text", "audio", "video"]
+    # MELD has train/dev/test splits with original utterances
+    splits: ["train", "dev", "test"]
+
+  iemocap:
+    base_path: "/path/to/IEMOCAP"
+    language: "en"
+    modalities: ["text", "audio", "video"]
+    sessions: ["Session1", "Session2", "Session3", "Session4", "Session5"]
+
+  mosei:
+    base_path: "/path/to/CMU-MOSEI"
+    language: "en"
+    modalities: ["text", "audio", "video"]
+
+  mustard:
+    base_path: "/path/to/MUStARD"
+    language: "en"
+    modalities: ["text", "audio", "video"]
+
+# Feature extraction defaults (applied unless dataset-specific override given)
+feature_extraction:
+  text:
+    max_length: 512
+    batch_size: 32
+  audio:
+    sample_rate: 16000
+    n_mfcc: 13
+    hop_length: 512
+    n_fft: 2048
+  video:
+    face_detector: "mediapipe"
+    landmark_model: "facemesh"
+
+# Annotation review settings
+annotation:
+  micro_review:
+    required_reviewers: 2
+    agreement_threshold: 0.8
+  l4_gold:
+    min_confidence: 0.9
