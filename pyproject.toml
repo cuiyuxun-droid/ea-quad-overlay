@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ea-quad-overlay"
+version = "0.1.0"
+description = "EA-Quad-Overlay L4 dataset pipeline — multi-modal emotion analysis dataset processing"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Core ML / DL
+torch = [
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "torchvision>=0.15",
+]
+# Text modality
+text = [
+    "transformers>=4.30",
+    "sentence-transformers>=2.2",
+    "tokenizers>=0.13",
+]
+# Speech / audio modality
+audio = [
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "pyworld>=0.3",
+    "opensmile>=3.0",
+]
+# Video / face modality
+video = [
+    "opencv-python>=4.8",
+    "face-recognition>=1.3",
+    "mediapipe>=0.10",
+    "decord>=0.6",
+]
+# All ML dependencies
+ml = ["ea-quad-overlay[torch,text,audio,video]"]
+
+# Development tooling
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.5",
+    "pre-commit>=3.0",
+    "ipython>=8.0",
+    "tqdm>=4.65",
+    "tabulate>=0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ea_quad_overlay*"]
+
+[tool.setuptools.package-data]
+"ea_quad_overlay" = ["configs/*.yaml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

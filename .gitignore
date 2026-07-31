@@ -1,12 +1,38 @@
-.cache/
+# Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
-.pytest_cache/
-.venv/
-venv/
 *.egg-info/
+dist/
+build/
+
+# Caches
+.cache/
+.pytest_cache/
+
+# Data and generated local artifacts
+outputs/
+/data/
+source_index/m1_sample_20_local.csv
+*.pt
+*.pth
+*.onnx
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
 Thumbs.db
-/data/
-*.pt
-source_index/m1_sample_20_local.csv
+
+# Environment
+.env
+.venv/
+venv/
+
+# Config overrides (user-specific)
+configs/*.local.yaml
