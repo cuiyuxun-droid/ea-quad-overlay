@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import posixpath
 import re
@@ -61,6 +62,27 @@ def remote_exists(sftp: paramiko.SFTPClient, path: str) -> bool:
         return False
 
 
+def run_remote_python(sftp: paramiko.SFTPClient, script: str) -> str:
+    transport = sftp.get_channel().get_transport()
+    session = transport.open_session()
+    session.exec_command("/root/miniconda3/bin/python -")
+    stdin = session.makefile("wb")
+    stdout = session.makefile("r")
+    stderr = session.makefile_stderr("r")
+    stdin.write(script.encode("utf-8"))
+    stdin.close()
+    output = stdout.read()
+    error = stderr.read()
+    status = session.recv_exit_status()
+    stdout.close()
+    stderr.close()
+    if status != 0:
+        raise RuntimeError(f"remote python failed ({status}): {error.strip()}")
+    if isinstance(output, bytes):
+        output = output.decode("utf-8")
+    return output.strip()
+
+
 def materialize_video(sftp: paramiko.SFTPClient, video_spec: str, local_video: Path) -> None:
     if local_video.is_file() and local_video.stat().st_size > 0:
         print(f"skip existing {local_video}")
@@ -75,24 +97,24 @@ def materialize_video(sftp: paramiko.SFTPClient, video_spec: str, local_video: P
         if remote_exists(sftp, extracted):
             sftp_get(sftp, extracted, local_video)
             return
-        # Fallback: ask remote to extract one member via python
+        # Fallback: ask remote to extract one member via python.
         print(f"extract remote zip member {zip_path}::{member}")
-        cmd = (
-            "/root/miniconda3/bin/python - <<'PY'\n"
-            "import zipfile, pathlib\n"
-            f"zip_path=pathlib.Path({zip_path!r})\n"
-            f"member={member!r}\n"
-            "out=pathlib.Path('/tmp')/pathlib.Path(member).name\n"
-            "with zipfile.ZipFile(zip_path) as zf, zf.open(member) as src, out.open('wb') as dst:\n"
-            "    dst.write(src.read())\n"
+        digest = hashlib.sha1(f"{zip_path}::{member}".encode("utf-8")).hexdigest()[:12]
+        remote_tmp = posixpath.join("/tmp", f"ea_m1_{digest}_{posixpath.basename(member)}")
+        script = (
+            "import pathlib, shutil, zipfile\n"
+            f"zip_path = pathlib.Path({zip_path!r})\n"
+            f"member = {member!r}\n"
+            f"out = pathlib.Path({remote_tmp!r})\n"
+            "out.parent.mkdir(parents=True, exist_ok=True)\n"
+            "with zipfile.ZipFile(zip_path) as zf:\n"
+            "    with zf.open(member) as src, out.open('wb') as dst:\n"
+            "        shutil.copyfileobj(src, dst)\n"
             "print(out)\n"
-            "PY"
         )
-        # Use transport from sftp
-        raise RuntimeError(
-            f"Extracted path missing on server: {extracted}. "
-            "Ensure CH-SIMS Raw/ is extracted on AutoDL."
-        )
+        extracted_tmp = run_remote_python(sftp, script)
+        sftp_get(sftp, extracted_tmp, local_video)
+        return
 
     if not remote_exists(sftp, video_spec):
         raise FileNotFoundError(f"remote video missing: {video_spec}")

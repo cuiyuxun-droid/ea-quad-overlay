@@ -248,23 +248,16 @@ def read_ch_sims_text(label_csv: Path, key: str) -> str:
             reader = csv.DictReader(handle)
             fieldnames = reader.fieldnames or []
             for row in reader:
+                video_id = _first_nonempty(row, "video_id", "Video_ID", "video", "Video")
+                clip_id = _first_nonempty(row, "clip_id", "Clip_ID", "clip", "Clip")
                 candidates = [
                     row.get("id"),
                     row.get("ID"),
-                    row.get("video_id"),
-                    row.get("clip_id"),
-                    "/".join(
-                        part
-                        for part in [
-                            row.get("video"),
-                            row.get("clip"),
-                        ]
-                        if part
-                    ),
                 ]
-                row_key = next((c for c in candidates if c), "")
-                row_key = str(row_key).strip().replace("\\", "/")
-                if row_key == key or row_key.endswith(key) or key.endswith(row_key):
+                if video_id and clip_id:
+                    candidates.append(f"{video_id}/{clip_id}")
+                candidates = [_normalize_key(candidate) for candidate in candidates]
+                if any(_keys_match(candidate, key) for candidate in candidates if candidate):
                     for text_col in ("text", "Text", "chinese", "transcription", "sentence"):
                         if row.get(text_col):
                             return str(row[text_col]).strip()
@@ -281,6 +274,22 @@ def read_ch_sims_text(label_csv: Path, key: str) -> str:
                     return row[2].strip()
 
     raise KeyError(f"CH-SIMS text not found for key={key!r} in {label_csv}")
+
+
+def _first_nonempty(row: dict[str, str], *names: str) -> str:
+    for name in names:
+        value = row.get(name)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def _normalize_key(value: object) -> str:
+    return str(value or "").strip().replace("\\", "/")
+
+
+def _keys_match(candidate: str, key: str) -> bool:
+    return candidate == key or candidate.endswith(f"/{key}")
 
 
 def read_meld_utterance(csv_path: Path, dialogue_id: int, utterance_id: int) -> str:

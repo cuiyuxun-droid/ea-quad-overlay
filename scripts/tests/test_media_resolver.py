@@ -64,6 +64,16 @@ def test_read_ch_sims_text_headerless(tmp_path: Path) -> None:
     assert read_ch_sims_text(label, "video_0001/0001") == "我不想嫁给李茶"
 
 
+def test_read_ch_sims_text_split_video_clip_columns(tmp_path: Path) -> None:
+    label = tmp_path / "label.csv"
+    with label.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["video_id", "clip_id", "text"])
+        writer.writeheader()
+        writer.writerow({"video_id": "video_0001", "clip_id": "0001", "text": "first"})
+        writer.writerow({"video_id": "video_0002", "clip_id": "0001", "text": "second"})
+    assert read_ch_sims_text(label, "video_0001/0001") == "first"
+
+
 def test_read_meld_utterance(tmp_path: Path) -> None:
     csv_path = tmp_path / "train_sent_emo.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
