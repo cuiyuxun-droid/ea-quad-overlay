@@ -33,9 +33,9 @@
   "contradiction_type": "consistent",
   "involved_modalities": [],
   "fusion_weights": {
-    "text": 0.345455,
+    "text": 0.345454,
     "speech": 0.327273,
-    "macro": 0.327272,
+    "macro": 0.327273,
     "micro": 0.0
   },
   "reason": "The complaint, comparatively strong audio level, and animated arguing expression all support high-arousal negative affect.",

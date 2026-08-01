@@ -81,6 +81,48 @@ def test_cli_accepts_one_complete_temporary_dataset(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "annotation must be an object"),
+        (
+            {**make_valid_label(), "contradiction_type": "masking", "involved_modalities": [{}]},
+            "unique list of known modalities",
+        ),
+    ],
+)
+def test_cli_reports_malformed_json_without_traceback(
+    tmp_path: Path,
+    payload: object,
+    message: str,
+) -> None:
+    index_path, labels_dir = write_complete_temporary_dataset(tmp_path)
+    (labels_dir / "EAQ000001_seg001_l4_gold.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--index",
+            str(index_path),
+            "--annotations",
+            str(labels_dir),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=ROOT,
+    )
+
+    assert result.returncode == 1
+    assert "EAQ000001_seg001_l4_gold.json" in result.stderr
+    assert message in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_summary_reports_counts_means_and_low_confidence_ids() -> None:
     label = make_valid_label()
 

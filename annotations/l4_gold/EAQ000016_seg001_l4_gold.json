@@ -26,7 +26,7 @@
     }
   },
   "inter_va": {
-    "valence": -0.703192,
+    "valence": -0.703191,
     "arousal": 0.555319,
     "confidence": 0.796809
   },
@@ -34,8 +34,8 @@
   "involved_modalities": [],
   "fusion_weights": {
     "text": 0.382979,
-    "speech": 0.340426,
-    "macro": 0.276595,
+    "speech": 0.340425,
+    "macro": 0.276596,
     "micro": 0.0
   },
   "reason": "The dismissive wording, subdued delivery, and sad-frustrated expression agree on moderately aroused negative affect; partial face coverage lowers macro confidence.",

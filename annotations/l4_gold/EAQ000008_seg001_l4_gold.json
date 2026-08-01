@@ -26,7 +26,7 @@
     }
   },
   "inter_va": {
-    "valence": 0.582075,
+    "valence": 0.582076,
     "arousal": 0.568868,
     "confidence": 0.887736
   },
@@ -36,9 +36,9 @@
     "macro"
   ],
   "fusion_weights": {
-    "text": 0.358491,
+    "text": 0.35849,
     "speech": 0.301887,
-    "macro": 0.339622,
+    "macro": 0.339623,
     "micro": 0.0
   },
   "reason": "All confident modalities are positive, but the highly animated facial display is materially stronger than the modest wording and quiet delivery.",

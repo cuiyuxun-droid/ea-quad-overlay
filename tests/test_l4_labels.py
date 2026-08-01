@@ -38,6 +38,17 @@ def test_pending_micro_weight_is_capped_and_excess_is_redistributed() -> None:
     assert abs(sum(weights.values()) - 1.0) <= 1e-6
 
 
+def test_rounding_never_creates_a_negative_weight() -> None:
+    weights = calculate_fusion_weights(
+        {"text": 0.0140625, "speech": 0.8859375, "macro": 0.0, "micro": 0.2},
+        "consistent",
+        "pending_issue_5",
+    )
+
+    assert all(weight >= 0.0 for weight in weights.values())
+    assert sum(weights.values()) == 1.0
+
+
 def test_inter_va_is_weighted_and_rounded_to_six_places() -> None:
     modality_va = {
         "text": {"valence": 0.2, "arousal": 0.1, "confidence": 0.9},
@@ -74,6 +85,11 @@ def test_unknown_contradiction_type_is_rejected() -> None:
 
 def test_valid_annotation_passes() -> None:
     validate_annotation(make_valid_label(), "EAQ000001", "CH-SIMS")
+
+
+def test_annotation_root_must_be_an_object() -> None:
+    with pytest.raises(L4ValidationError, match="annotation must be an object"):
+        validate_annotation([], "EAQ000001", "CH-SIMS")  # type: ignore[arg-type]
 
 
 def test_missing_field_is_reported_without_internal_error() -> None:
@@ -127,6 +143,15 @@ def test_duplicate_and_unknown_involved_modalities_are_rejected() -> None:
     label["involved_modalities"] = ["text", "text", "body"]
 
     with pytest.raises(L4ValidationError, match="unique.*known modalities"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_unhashable_involved_modality_is_reported_as_validation_error() -> None:
+    label = make_valid_label()
+    label["contradiction_type"] = "masking"
+    label["involved_modalities"] = [{}]
+
+    with pytest.raises(L4ValidationError, match="unique list of known modalities"):
         validate_annotation(label, "EAQ000001", "CH-SIMS")
 
 
@@ -187,6 +212,51 @@ def test_identity_dataset_and_contradiction_type_are_enforced() -> None:
         match="ea_id must be EAQ000001.*source_dataset must be CH-SIMS.*invalid contradiction_type",
     ):
         validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_dataset_enum_is_enforced_even_when_it_matches_the_index() -> None:
+    label = make_valid_label()
+    label["source_dataset"] = "OTHER"
+
+    with pytest.raises(L4ValidationError, match="source_dataset must be CH-SIMS or MELD"):
+        validate_annotation(label, "EAQ000001", "OTHER")
+
+
+def _refresh_inter_va(label: dict) -> None:
+    label["inter_va"] = calculate_inter_va(
+        label["modality_va"],
+        label["fusion_weights"],
+    )
+
+
+def test_consistent_rejects_opposing_confident_valences() -> None:
+    label = make_valid_label()
+    label["modality_va"]["text"]["valence"] = 0.6
+    label["modality_va"]["speech"]["valence"] = -0.6
+    _refresh_inter_va(label)
+
+    with pytest.raises(L4ValidationError, match="opposing confident valences"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_consistent_rejects_pairwise_va_distance_above_threshold() -> None:
+    label = make_valid_label()
+    label["modality_va"]["text"].update(valence=0.1, arousal=0.1)
+    label["modality_va"]["speech"].update(valence=0.5, arousal=0.1)
+    _refresh_inter_va(label)
+
+    with pytest.raises(L4ValidationError, match="pairwise VA distance exceeds 0.35"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_consistent_accepts_pairwise_va_distance_at_threshold() -> None:
+    label = make_valid_label()
+    label["modality_va"]["text"].update(valence=0.1, arousal=0.1)
+    label["modality_va"]["speech"].update(valence=0.45, arousal=0.1)
+    label["modality_va"]["macro"].update(valence=0.2, arousal=0.1)
+    _refresh_inter_va(label)
+
+    validate_annotation(label, "EAQ000001", "CH-SIMS")
 
 
 def test_annotation_metadata_requires_known_evidence_tokens() -> None:

@@ -13,6 +13,8 @@ from typing import Any
 
 
 MODALITIES = ("text", "speech", "macro", "micro")
+SOURCE_DATASETS = ("CH-SIMS", "MELD")
+CONSISTENT_DISTANCE_THRESHOLD = 0.35
 CONTRADICTION_TYPES = (
     "consistent",
     "masking",
@@ -65,6 +67,28 @@ def _is_number(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _quantize_weights(weights: Mapping[str, float]) -> dict[str, float]:
+    """Round weights to six places while preserving bounds and an exact unit sum."""
+    scale = 1_000_000
+    total = sum(float(weights[modality]) for modality in MODALITIES)
+    scaled = {
+        modality: float(weights[modality]) / total * scale for modality in MODALITIES
+    }
+    units = {modality: math.floor(scaled[modality]) for modality in MODALITIES}
+    remaining = scale - sum(units.values())
+    ranked = sorted(
+        MODALITIES,
+        key=lambda modality: (
+            scaled[modality] - units[modality],
+            scaled[modality],
+        ),
+        reverse=True,
+    )
+    for index in range(remaining):
+        units[ranked[index]] += 1
+    return {modality: units[modality] / scale for modality in MODALITIES}
+
+
 def calculate_fusion_weights(
     confidences: Mapping[str, float],
     contradiction_type: str,
@@ -95,9 +119,7 @@ def calculate_fusion_weights(
         for modality in MODALITIES[:-1]:
             weights[modality] += excess * weights[modality] / non_micro_total
 
-    rounded = {modality: round(weights[modality], 6) for modality in MODALITIES}
-    rounded["macro"] = round(rounded["macro"] + (1.0 - sum(rounded.values())), 6)
-    return rounded
+    return _quantize_weights(weights)
 
 
 def calculate_inter_va(
@@ -123,6 +145,9 @@ def validate_annotation(
     expected_dataset: str,
 ) -> None:
     """Validate one annotation against its source-index identity and policy."""
+    if not isinstance(label, Mapping):
+        raise L4ValidationError("annotation must be an object")
+
     errors: list[str] = []
     missing = sorted(REQUIRED_FIELDS - set(label))
     if missing:
@@ -138,7 +163,10 @@ def validate_annotation(
         errors.append(f"ea_id must be {expected_ea_id}")
     if label.get("segment_id") != f"{expected_ea_id}_seg001":
         errors.append(f"segment_id must be {expected_ea_id}_seg001")
-    if label.get("source_dataset") != expected_dataset:
+    source_dataset = label.get("source_dataset")
+    if source_dataset not in SOURCE_DATASETS:
+        errors.append("source_dataset must be CH-SIMS or MELD")
+    if source_dataset != expected_dataset:
         errors.append(f"source_dataset must be {expected_dataset}")
 
     modality_va = label.get("modality_va")
@@ -172,14 +200,48 @@ def validate_annotation(
     involved = label.get("involved_modalities")
     if (
         not isinstance(involved, list)
-        or len(involved) != len(set(involved))
+        or any(not isinstance(modality, str) for modality in involved)
         or any(modality not in MODALITIES for modality in involved)
+        or len(involved) != len(set(involved))
     ):
         errors.append("involved_modalities must be a unique list of known modalities")
     elif contradiction_type == "consistent" and involved:
         errors.append("consistent requires empty involved_modalities")
     elif contradiction_type in CONTRADICTION_TYPES[1:] and not involved:
         errors.append("non-consistent labels require involved_modalities")
+
+    if valid_va_shape and contradiction_type == "consistent":
+        confident_modalities = [
+            modality
+            for modality in MODALITIES
+            if float(modality_va[modality]["confidence"]) >= 0.50
+        ]
+        confident_valences = [
+            float(modality_va[modality]["valence"])
+            for modality in confident_modalities
+        ]
+        if confident_valences and min(confident_valences) < 0 < max(
+            confident_valences
+        ):
+            errors.append("consistent has opposing confident valences")
+
+        exceeds_distance = any(
+            math.dist(
+                (
+                    float(modality_va[left]["valence"]),
+                    float(modality_va[left]["arousal"]),
+                ),
+                (
+                    float(modality_va[right]["valence"]),
+                    float(modality_va[right]["arousal"]),
+                ),
+            )
+            > CONSISTENT_DISTANCE_THRESHOLD + 1e-12
+            for left_index, left in enumerate(confident_modalities)
+            for right in confident_modalities[left_index + 1 :]
+        )
+        if exceeds_distance:
+            errors.append("consistent pairwise VA distance exceeds 0.35")
 
     weights = label.get("fusion_weights")
     valid_weights = isinstance(weights, Mapping) and set(weights) == set(MODALITIES)

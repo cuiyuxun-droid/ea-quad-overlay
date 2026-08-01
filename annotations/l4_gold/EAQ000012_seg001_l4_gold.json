@@ -38,8 +38,8 @@
   ],
   "fusion_weights": {
     "text": 0.310502,
-    "speech": 0.401826,
-    "macro": 0.287672,
+    "speech": 0.401827,
+    "macro": 0.287671,
     "micro": 0.0
   },
   "reason": "The literal reply is weakly positive and restrained, while the surprised delivery and visible reaction carry a clearly stronger positive arousal signal.",
