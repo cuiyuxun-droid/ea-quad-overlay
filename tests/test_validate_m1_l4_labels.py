@@ -81,6 +81,14 @@ def test_cli_accepts_one_complete_temporary_dataset(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def make_zero_confidence_label() -> dict:
+    label = make_valid_label()
+    for modality in label["modality_va"].values():
+        modality["confidence"] = 0.0
+    label["inter_va"]["confidence"] = 0.0
+    return label
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -89,6 +97,17 @@ def test_cli_accepts_one_complete_temporary_dataset(tmp_path: Path) -> None:
             {**make_valid_label(), "contradiction_type": "masking", "involved_modalities": [{}]},
             "unique list of known modalities",
         ),
+        (
+            {
+                **make_valid_label(),
+                "annotation_meta": {
+                    **make_valid_label()["annotation_meta"],
+                    "evidence": [{}],
+                },
+            },
+            "invalid evidence token",
+        ),
+        (make_zero_confidence_label(), "all raw fusion weights are zero"),
     ],
 )
 def test_cli_reports_malformed_json_without_traceback(

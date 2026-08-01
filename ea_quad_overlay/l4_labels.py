@@ -279,6 +279,7 @@ def validate_annotation(
         if (
             not isinstance(evidence, list)
             or not evidence
+            or any(not isinstance(token, str) for token in evidence)
             or any(token not in ALLOWED_EVIDENCE for token in evidence)
         ):
             errors.append("annotation_meta contains an invalid evidence token")
@@ -288,18 +289,24 @@ def validate_annotation(
             modality: float(modality_va[modality]["confidence"])
             for modality in MODALITIES
         }
-        expected_weights = calculate_fusion_weights(
-            confidences,
-            contradiction_type,
-            str(meta.get("micro_review_status", "")),
-        )
-        if any(
-            not math.isclose(
-                float(weights[modality]), expected_weights[modality], abs_tol=1e-6
+        try:
+            expected_weights = calculate_fusion_weights(
+                confidences,
+                contradiction_type,
+                str(meta.get("micro_review_status", "")),
             )
-            for modality in MODALITIES
-        ):
-            errors.append("fusion_weights do not match deterministic policy")
+        except ValueError as exc:
+            errors.append(f"fusion weight policy error: {exc}")
+        else:
+            if any(
+                not math.isclose(
+                    float(weights[modality]),
+                    expected_weights[modality],
+                    abs_tol=1e-6,
+                )
+                for modality in MODALITIES
+            ):
+                errors.append("fusion_weights do not match deterministic policy")
 
         expected_inter = calculate_inter_va(modality_va, weights)
         inter_va = label.get("inter_va")
