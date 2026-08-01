@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000002",
+  "segment_id": "EAQ000002_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "你这是嫁入豪门啊！",
+    "emotion_label": "Positive",
+    "candidate_score": 1.997166,
+    "l2_peak_frame_index": 2,
+    "frames_with_face": 36
+  },
+  "evidence": {
+    "primary_motion": "clip_onset",
+    "note": "峰值 frame 2 (0.08s) 为片段开头启动运动，diff 达 24.6 后单调回落；候选分 2.0 较低，无微表情形态。"
+  },
+  "event": null
+}

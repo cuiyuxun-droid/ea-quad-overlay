@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000020",
+  "segment_id": "EAQ000020_seg001",
+  "review_status": "uncertain",
+  "has_micro_expression": null,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "Okay, y'know what? There is no more left, left!",
+    "emotion_label": "anger/negative",
+    "candidate_score": 4.029386,
+    "l2_peak_frame_index": 2,
+    "frames_with_face": 23
+  },
+  "evidence": {
+    "primary_motion": "suppressed_face",
+    "note": "怒气台词 'There is no more left, left!' 但真实峰值 0.50s 处绝对运动极低且平坦（diff~0.9，flow~0.3），高候选分 4.03 为低方差样本中的相对峰；疑似表情抑制/掩蔽的脸部，无法从静帧确认微表情，需第二审核人。"
+  },
+  "event": null
+}

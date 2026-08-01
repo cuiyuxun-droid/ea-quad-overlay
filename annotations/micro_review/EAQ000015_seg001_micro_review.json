@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000015",
+  "segment_id": "EAQ000015_seg001",
+  "review_status": "uncertain",
+  "has_micro_expression": null,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "But then who? The waitress I went out with last month?",
+    "emotion_label": "surprise/negative",
+    "candidate_score": 4.158628,
+    "l2_peak_frame_index": 17,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "expressive_speech",
+    "note": "全组最高候选分 4.16，但真实峰值 0.83s 处绝对运动极低且平坦（diff~3.5，flow~1.0），为低方差样本中的相对 z-score 峰；'But then who? The waitress...?'惊讶顿悟语境下无法确认是否存在细微微表情，需第二审核人。"
+  },
+  "event": null
+}
