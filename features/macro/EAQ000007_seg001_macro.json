@@ -1,0 +1,17 @@
+{
+  "ea_id": "EAQ000007",
+  "segment_id": "EAQ000007_seg001",
+  "modality": "macro",
+  "shape": [
+    512
+  ],
+  "dtype": "float32",
+  "feature_path": "features/macro/EAQ000007_seg001_macro.npy",
+  "model": "torchvision/resnet18_imagenet_face_embedding",
+  "status": "ok",
+  "face_detect_rate": 0.75,
+  "frames_sampled": 4,
+  "frames_with_face": 3,
+  "elapsed_sec": 0.4921,
+  "weights": "/root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth"
+}

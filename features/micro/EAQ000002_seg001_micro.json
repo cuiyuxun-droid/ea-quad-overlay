@@ -1,0 +1,18 @@
+{
+  "ea_id": "EAQ000002",
+  "segment_id": "EAQ000002_seg001",
+  "modality": "micro",
+  "shape": [
+    16
+  ],
+  "dtype": "float32",
+  "feature_path": "features/micro/EAQ000002_seg001_micro.npy",
+  "model": "face_roi_framediff_opticalflow_v1",
+  "status": "ok",
+  "skipped": false,
+  "candidate_score": 1.997166,
+  "peak_frame_index": 2,
+  "frames_with_face": 36,
+  "frames_sampled": 48,
+  "elapsed_sec": 0.6982
+}
