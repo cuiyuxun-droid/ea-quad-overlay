@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from ea_quad_overlay.l4_labels import calculate_fusion_weights, calculate_inter_va
+from ea_quad_overlay.l4_labels import (
+    L4ValidationError,
+    calculate_fusion_weights,
+    calculate_inter_va,
+    validate_annotation,
+)
+from tests.l4_test_data import make_valid_label
 
 
 def test_consistent_weights_follow_confidence_and_sum_to_one() -> None:
@@ -64,3 +70,128 @@ def test_unknown_contradiction_type_is_rejected() -> None:
             "unknown",
             "pending_issue_5",
         )
+
+
+def test_valid_annotation_passes() -> None:
+    validate_annotation(make_valid_label(), "EAQ000001", "CH-SIMS")
+
+
+def test_missing_field_is_reported_without_internal_error() -> None:
+    label = make_valid_label()
+    del label["inter_va"]
+
+    with pytest.raises(L4ValidationError, match="missing fields: inter_va"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_non_consistent_label_requires_involved_modalities() -> None:
+    label = make_valid_label()
+    label["contradiction_type"] = "sarcasm"
+
+    with pytest.raises(L4ValidationError, match="require involved_modalities"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_consistent_label_rejects_involved_modalities() -> None:
+    label = make_valid_label()
+    label["involved_modalities"] = ["text", "speech"]
+
+    with pytest.raises(L4ValidationError, match="consistent requires empty"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+@pytest.mark.parametrize(
+    ("modality", "field", "value"),
+    [
+        ("text", "valence", 1.01),
+        ("speech", "arousal", -1.01),
+        ("macro", "confidence", 1.01),
+        ("micro", "confidence", True),
+    ],
+)
+def test_modality_ranges_and_boolean_values_are_rejected(
+    modality: str,
+    field: str,
+    value: float | bool,
+) -> None:
+    label = make_valid_label()
+    label["modality_va"][modality][field] = value
+
+    with pytest.raises(L4ValidationError, match=rf"{modality}\.{field}"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_duplicate_and_unknown_involved_modalities_are_rejected() -> None:
+    label = make_valid_label()
+    label["contradiction_type"] = "masking"
+    label["involved_modalities"] = ["text", "text", "body"]
+
+    with pytest.raises(L4ValidationError, match="unique.*known modalities"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_weight_sum_is_enforced() -> None:
+    label = make_valid_label()
+    label["fusion_weights"]["text"] = 0.35
+
+    with pytest.raises(L4ValidationError, match="sum to 1"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_weights_must_match_the_deterministic_policy() -> None:
+    label = make_valid_label()
+    label["fusion_weights"] = {
+        "text": 0.34,
+        "speech": 0.34,
+        "macro": 0.32,
+        "micro": 0.0,
+    }
+    label["inter_va"] = {"valence": 0.15, "arousal": 0.134, "confidence": 0.834}
+
+    with pytest.raises(L4ValidationError, match="deterministic policy"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_inter_va_must_match_weighted_modalities() -> None:
+    label = make_valid_label()
+    label["inter_va"]["valence"] = 0.0
+
+    with pytest.raises(L4ValidationError, match=r"inter_va\.valence"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_pending_micro_caps_are_enforced() -> None:
+    label = make_valid_label()
+    label["modality_va"]["micro"]["confidence"] = 0.61
+
+    with pytest.raises(L4ValidationError, match="micro confidence"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_reason_must_be_non_empty() -> None:
+    label = make_valid_label()
+    label["reason"] = "  "
+
+    with pytest.raises(L4ValidationError, match="reason must be non-empty"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_identity_dataset_and_contradiction_type_are_enforced() -> None:
+    label = make_valid_label()
+    label["ea_id"] = "EAQ000099"
+    label["source_dataset"] = "OTHER"
+    label["contradiction_type"] = "unknown"
+
+    with pytest.raises(
+        L4ValidationError,
+        match="ea_id must be EAQ000001.*source_dataset must be CH-SIMS.*invalid contradiction_type",
+    ):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_annotation_metadata_requires_known_evidence_tokens() -> None:
+    label = make_valid_label()
+    label["annotation_meta"]["evidence"] = ["source_annotation", "invented_signal"]
+
+    with pytest.raises(L4ValidationError, match="invalid evidence token"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
