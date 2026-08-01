@@ -9,9 +9,9 @@
   "feature_path": "features/macro/EAQ000016_seg001_macro.npy",
   "model": "torchvision/resnet18_imagenet_face_embedding",
   "status": "ok",
-  "face_detect_rate": 0.5,
+  "face_detect_rate": 1.0,
   "frames_sampled": 4,
-  "frames_with_face": 2,
-  "elapsed_sec": 0.1825,
-  "weights": "C:\\Users\\AntonyTang\\.cache\\torch\\hub\\checkpoints\\resnet18-f37072fd.pth"
+  "frames_with_face": 4,
+  "elapsed_sec": 0.237,
+  "weights": "/root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth"
 }

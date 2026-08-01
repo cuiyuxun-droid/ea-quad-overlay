@@ -12,6 +12,6 @@
   "face_detect_rate": 0.75,
   "frames_sampled": 4,
   "frames_with_face": 3,
-  "elapsed_sec": 0.3424,
-  "weights": "C:\\Users\\AntonyTang\\.cache\\torch\\hub\\checkpoints\\resnet18-f37072fd.pth"
+  "elapsed_sec": 0.4178,
+  "weights": "/root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth"
 }

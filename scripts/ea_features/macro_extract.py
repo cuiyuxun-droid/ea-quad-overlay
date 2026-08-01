@@ -18,6 +18,8 @@ from ea_features.face_utils import crop_largest_face, sample_frames
 
 MODEL_NAME = "torchvision/resnet18_imagenet_face_embedding"
 FEATURE_DIM = 512
+# Metadata always records the server canonical path (never a local machine path).
+SERVER_WEIGHTS_PATH = "/root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth"
 
 
 def _shrink(frame_bgr: np.ndarray, max_width: int = 480) -> np.ndarray:
@@ -28,6 +30,20 @@ def _shrink(frame_bgr: np.ndarray, max_width: int = 480) -> np.ndarray:
     return cv2.resize(frame_bgr, (max_width, max(1, int(h * scale))))
 
 
+def _crop_face_for_macro(frame_bgr: np.ndarray) -> np.ndarray | None:
+    """Detect face; try shrunk frame first, fall back to full resolution.
+
+    Shrink speeds up Haar on wide frames, but can push small faces below
+    ``minSize`` and yield false negatives (observed on EAQ000002/009/020).
+    """
+    crop = crop_largest_face(_shrink(frame_bgr))
+    if crop is not None:
+        return crop
+    if frame_bgr.shape[1] > 480:
+        return crop_largest_face(frame_bgr)
+    return None
+
+
 def _resolve_resnet18_weights() -> Path | None:
     candidates = []
     env = os.environ.get("EA_RESNET18_WEIGHTS")
@@ -35,7 +51,7 @@ def _resolve_resnet18_weights() -> Path | None:
         candidates.append(Path(env))
     candidates.extend(
         [
-            Path("/root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth"),
+            Path(SERVER_WEIGHTS_PATH),
             Path.home() / ".cache/torch/hub/checkpoints/resnet18-f37072fd.pth",
         ]
     )
@@ -43,6 +59,13 @@ def _resolve_resnet18_weights() -> Path | None:
         if path.is_file() and path.stat().st_size > 1_000_000:
             return path
     return None
+
+
+def _weights_metadata(resolved: Path | None) -> str:
+    """Return portable weights id for sidecar JSON (server path, not local abs path)."""
+    if resolved is None:
+        return "ResNet18_Weights.DEFAULT"
+    return SERVER_WEIGHTS_PATH
 
 
 class MacroExtractor:
@@ -58,11 +81,11 @@ class MacroExtractor:
             self.model = resnet18(weights=None)
             state = torch.load(str(local_weights), map_location="cpu", weights_only=True)
             self.model.load_state_dict(state, strict=False)
-            self._weights_source = str(local_weights)
+            self._weights_source = _weights_metadata(local_weights)
         else:
             # May download from the network; prefer pre-caching on the server.
             self.model = resnet18(weights=ResNet18_Weights.DEFAULT)
-            self._weights_source = "ResNet18_Weights.DEFAULT"
+            self._weights_source = _weights_metadata(None)
         self.model.fc = nn.Identity()
         self.model.to(self.device)
         self.model.eval()
@@ -100,7 +123,7 @@ class MacroExtractor:
         embeddings: list[np.ndarray] = []
         face_hits = 0
         for frame in frames:
-            crop = crop_largest_face(_shrink(frame))
+            crop = _crop_face_for_macro(frame)
             if crop is None:
                 continue
             face_hits += 1
@@ -117,6 +140,7 @@ class MacroExtractor:
                 "face_detect_rate": round(face_rate, 4),
                 "frames_sampled": len(frames),
                 "elapsed_sec": round(time.perf_counter() - started, 4),
+                "weights": self._weights_source,
             }
 
         vec = np.mean(np.stack(embeddings, axis=0), axis=0).astype(np.float32)

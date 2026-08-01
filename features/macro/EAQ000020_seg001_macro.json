@@ -8,8 +8,10 @@
   "dtype": "float32",
   "feature_path": "features/macro/EAQ000020_seg001_macro.npy",
   "model": "torchvision/resnet18_imagenet_face_embedding",
-  "status": "no_face",
-  "face_detect_rate": 0.0,
+  "status": "ok",
+  "face_detect_rate": 0.5,
   "frames_sampled": 4,
-  "elapsed_sec": 0.203
+  "frames_with_face": 2,
+  "elapsed_sec": 0.2973,
+  "weights": "/root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth"
 }
