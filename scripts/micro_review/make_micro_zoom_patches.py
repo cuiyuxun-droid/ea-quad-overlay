@@ -47,9 +47,9 @@ def sample_frames(video_path: Path, max_frames: int):
         collected.append(frame)
     cap.release()
     if len(collected) <= max_frames:
-        return collected, fps
+        return collected, fps, list(range(len(collected)))
     idx = np.linspace(0, len(collected) - 1, max_frames).astype(int)
-    return [collected[i] for i in idx], fps
+    return [collected[i] for i in idx], fps, [int(i) for i in idx]
 
 
 def main() -> None:
@@ -84,26 +84,27 @@ def main() -> None:
         else:
             parts = row["source_id"].split("/")
             base = f'{parts[-2]}_{parts[-1]}.mp4'
-            rel = videos_dir / ("meld_test" if "test" in row["source_split"] else "meld_train") / base
+            split_dir = "meld_test" if "test" in row["source_split"] else "meld_train"
+            rel = videos_dir / split_dir / base
         if not rel.is_file():
             continue
 
-        frames, fps = sample_frames(rel, 48)
+        frames, fps, frame_nums = sample_frames(rel, 48)
         # Recompute face-present sampled indices to map peak_idx -> true frame
         face_nums = []
         for i, fr in enumerate(frames):
             gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
             faces = cascade.detectMultiScale(gray, 1.1, 4, minSize=(40, 40))
             if len(faces):
-                face_nums.append(i)
+                face_nums.append((i, frame_nums[i]))
         if not face_nums:
             continue
         if peak_idx >= len(face_nums):
             peak_idx = len(face_nums) - 1
-        peak_true = face_nums[peak_idx]
+        peak_sample, peak_true = face_nums[peak_idx]
 
         rows_imgs = []
-        for gi in range(max(0, peak_true - 2), min(len(frames), peak_true + 3)):
+        for gi in range(max(0, peak_sample - 2), min(len(frames), peak_sample + 3)):
             frame = frames[gi]
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = cascade.detectMultiScale(gray, 1.1, 4, minSize=(40, 40))
@@ -111,20 +112,37 @@ def main() -> None:
                 continue
             x, y, w, h = max(faces, key=lambda b: b[2] * b[3])
             # eyes/brows: upper third; mouth: lower third
-            eye = frame[y: y + int(h * 0.42), x + int(w * 0.12): x + w - int(w * 0.12)]
-            mouth = frame[y + int(h * 0.55): y + int(h * 0.95), x + int(w * 0.12): x + w - int(w * 0.12)]
+            eye = frame[
+                y : y + int(h * 0.42),
+                x + int(w * 0.12) : x + w - int(w * 0.12),
+            ]
+            mouth = frame[
+                y + int(h * 0.55) : y + int(h * 0.95),
+                x + int(w * 0.12) : x + w - int(w * 0.12),
+            ]
             eye = cv2.resize(eye, (320, 200), interpolation=cv2.INTER_CUBIC)
             mouth = cv2.resize(mouth, (320, 200), interpolation=cv2.INTER_CUBIC)
-            tag = "PEAK" if gi == peak_true else f"#{gi}"
+            tag = "PEAK" if gi == peak_sample else f"#{frame_nums[gi]}"
             for img in (eye, mouth):
-                cv2.putText(img, tag, (6, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255) if gi == peak_true else (0, 0, 0), 2)
+                cv2.putText(
+                    img,
+                    tag,
+                    (6, 24),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 0, 255) if gi == peak_sample else (0, 0, 0),
+                    2,
+                )
             rows_imgs.append(np.hstack([eye, mouth]))
 
         if not rows_imgs:
             continue
         canvas = np.vstack(rows_imgs)
         cv2.imwrite(str(out_dir / f"{ea_id}_zoom.png"), canvas)
-        print(f"{ea_id}: peak_true={peak_true} t={peak_true/fps:.3f}s frames={len(rows_imgs)}")
+        print(
+            f"{ea_id}: peak_sample={peak_sample} peak_true={peak_true} "
+            f"t={peak_true/fps:.3f}s frames={len(rows_imgs)}"
+        )
 
 
 if __name__ == "__main__":

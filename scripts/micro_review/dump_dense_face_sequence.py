@@ -69,7 +69,8 @@ def main() -> None:
         else:
             parts = row["source_id"].split("/")
             base = f'{parts[-2]}_{parts[-1]}.mp4'
-            rel = videos_dir / ("meld_test" if "test" in row["source_split"] else "meld_train") / base
+            split_dir = "meld_test" if "test" in row["source_split"] else "meld_train"
+            rel = videos_dir / split_dir / base
         if not rel.is_file():
             print(f"{ea_id}: missing video")
             continue
@@ -95,12 +96,13 @@ def main() -> None:
             sampled = [all_frames[i] for i in s_idx]
         else:
             sampled = all_frames
+            s_idx = np.arange(len(all_frames))
         face_nums = []
         for i, fr in enumerate(sampled):
             gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
             faces = cascade.detectMultiScale(gray, 1.1, 4, minSize=(40, 40))
             if len(faces):
-                face_nums.append(i)
+                face_nums.append(int(s_idx[i]))
         if not face_nums:
             print(f"{ea_id}: no face")
             continue
@@ -117,8 +119,10 @@ def main() -> None:
             continue
         fx, fy, fw, fh = max(faces, key=lambda b: b[2] * b[3])
         pad = 0.15
-        x0 = max(0, int(fx - pad * fw)); y0 = max(0, int(fy - pad * fh))
-        x1 = min(len(peak_frame[0]), int(fx + fw + pad * fw)); y1 = min(len(peak_frame), int(fy + fh + pad * fh))
+        x0 = max(0, int(fx - pad * fw))
+        y0 = max(0, int(fy - pad * fh))
+        x1 = min(len(peak_frame[0]), int(fx + fw + pad * fw))
+        y1 = min(len(peak_frame), int(fy + fh + pad * fh))
 
         out_dir = out_root / ea_id
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -127,7 +131,15 @@ def main() -> None:
         for gi in range(lo, hi + 1):
             crop = all_frames[gi][y0:y1, x0:x1]
             crop = cv2.resize(crop, (400, 400), interpolation=cv2.INTER_CUBIC)
-            cv2.putText(crop, f"{gi} {gi/fps:.3f}s", (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255) if gi == peak_true else (0, 255, 0), 2)
+            cv2.putText(
+                crop,
+                f"{gi} {gi/fps:.3f}s",
+                (8, 26),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255) if gi == peak_true else (0, 255, 0),
+                2,
+            )
             cv2.imwrite(str(out_dir / f"{gi:04d}_{gi/fps:.3f}s.png"), crop)
         print(f"{ea_id}: peak_true={peak_true} t={peak_true/fps:.3f}s dense={hi-lo+1} frames")
 

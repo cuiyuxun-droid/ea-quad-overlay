@@ -2,7 +2,7 @@
 """Validate M1 micro-review annotations (Issue 05).
 
 Checks:
-  - one review file per EA ID in the M1 source index (20 expected)
+  - exactly one review file per EA ID in the M1 source index (20 expected)
   - JSON parses and required fields exist
   - verdict is one of positive / negative / uncertain
   - positive reviews carry a non-null event (onset/apex/offset, AU, intensity)
@@ -43,20 +43,26 @@ def main() -> None:
             rows.append(r)
 
     expected = [r["ea_id"] for r in rows]
-    if len(expected) < 20:
-        fail(f"expected at least 20 samples in index, got {len(expected)}")
+    if len(expected) != 20:
+        fail(f"expected exactly 20 samples in index, got {len(expected)}")
+    duplicated_ids = [ea_id for ea_id, count in Counter(expected).items() if count > 1]
+    if duplicated_ids:
+        fail(f"duplicate EA IDs in source index: {', '.join(sorted(duplicated_ids))}")
 
     review_files = {p.name: p for p in REVIEW_DIR.glob("*_micro_review.json")}
-    if len(review_files) < 20:
-        fail(f"expected at least 20 review files, got {len(review_files)}")
+    expected_files = {f"{ea_id}_seg001_micro_review.json" for ea_id in expected}
+    actual_files = set(review_files)
+    missing_files = expected_files - actual_files
+    extra_files = actual_files - expected_files
+    if missing_files:
+        fail(f"missing review files: {', '.join(sorted(missing_files))}")
+    if extra_files:
+        fail(f"unexpected review files: {', '.join(sorted(extra_files))}")
 
     # 1. every expected EA ID has a review file
     parsed: dict[str, dict] = {}
     for ea_id in expected:
-        match = [name for name in review_files if name.startswith(ea_id + "_")]
-        if not match:
-            fail(f"missing review file for {ea_id}")
-        path = review_files[match[0]]
+        path = review_files[f"{ea_id}_seg001_micro_review.json"]
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
@@ -69,7 +75,13 @@ def main() -> None:
             fail(f"{ea_id}: ea_id field mismatch")
         if data.get("segment_id") != f"{ea_id}_seg001":
             fail(f"{ea_id}: unexpected segment_id {data.get('segment_id')!r}")
-        for field in ("review_status", "has_micro_expression", "reviewer", "review_date", "evidence"):
+        for field in (
+            "review_status",
+            "has_micro_expression",
+            "reviewer",
+            "review_date",
+            "evidence",
+        ):
             if field not in data:
                 fail(f"{ea_id}: missing field {field!r}")
 

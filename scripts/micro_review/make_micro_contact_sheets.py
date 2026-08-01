@@ -46,7 +46,10 @@ def load_cascade() -> cv2.CascadeClassifier:
     if _SYS_PATH_READY:
         return get_face_cascade()
     candidates = [
-        Path(__file__).resolve().parents[1] / "ea_features" / "data" / "haarcascade_frontalface_default.xml",
+        Path(__file__).resolve().parents[1]
+        / "ea_features"
+        / "data"
+        / "haarcascade_frontalface_default.xml",
         Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml",
     ]
     for path in candidates:
@@ -82,25 +85,26 @@ def sample_frames(video_path: Path, max_frames: int):
     if not collected:
         raise RuntimeError(f"no frames in video: {video_path}")
     if len(collected) <= max_frames:
-        return collected, fps
+        return collected, fps, list(range(len(collected)))
     idx = np.linspace(0, len(collected) - 1, max_frames).astype(int)
-    return [collected[i] for i in idx], fps
+    return [collected[i] for i in idx], fps, [int(i) for i in idx]
 
 
-def find_peak_face_frame(cascade, frames, peak_idx):
-    """Map L2 peak index -> (sampled index, true frame number) of peak face frame."""
-    face_frame_nums = []  # true frame numbers that had a face
+def find_peak_face_frame(cascade, frames, frame_nums, peak_idx):
+    """Map L2 peak index -> sampled index and true video frame number."""
+    face_frames = []
     for i, frame in enumerate(frames):
         if crop_largest_face(cascade, frame) is not None:
-            face_frame_nums.append(i)
-    if not face_frame_nums:
-        return None, None
-    if peak_idx >= len(face_frame_nums):
-        peak_idx = len(face_frame_nums) - 1
-    return face_frame_nums[peak_idx], face_frame_nums
+            face_frames.append((i, frame_nums[i]))
+    if not face_frames:
+        return None, None, []
+    if peak_idx >= len(face_frames):
+        peak_idx = len(face_frames) - 1
+    peak_sample_idx, peak_true_frame = face_frames[peak_idx]
+    return peak_sample_idx, peak_true_frame, face_frames
 
 
-def draw_strip(cascade, frames, win, peak_global, out_path: Path) -> None:
+def draw_strip(cascade, frames, frame_nums, win, peak_sample_idx, out_path: Path) -> None:
     """Top strip: zoomed face ROIs across the window."""
     cell_w, cell_h = 200, 200
     n = len(win)
@@ -110,18 +114,34 @@ def draw_strip(cascade, frames, win, peak_global, out_path: Path) -> None:
         crop = crop_largest_face(cascade, frame)
         if crop is None:
             tile = np.full((cell_h, cell_w, 3), 120, dtype=np.uint8)
-            cv2.putText(tile, "no face", (30, cell_h // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(
+                tile,
+                "no face",
+                (30, cell_h // 2),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                1,
+            )
         else:
             tile = cv2.resize(crop, (cell_w, cell_h), interpolation=cv2.INTER_LINEAR)
-        if gi == peak_global:
+        if gi == peak_sample_idx:
             cv2.rectangle(tile, (0, 0), (cell_w - 1, cell_h - 1), (0, 0, 255), 6)
         x = j * cell_w
         strip[0:cell_h, x : x + cell_w] = tile
-        cv2.putText(strip, f"#{gi}", (x + 4, cell_h + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (40, 40, 40), 1)
+        cv2.putText(
+            strip,
+            f"#{frame_nums[gi]}",
+            (x + 4, cell_h + 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (40, 40, 40),
+            1,
+        )
     cv2.imwrite(str(out_path), strip)
 
 
-def draw_grid(cascade, frames, win, peak_global, out_path: Path) -> None:
+def draw_grid(cascade, frames, frame_nums, win, peak_sample_idx, out_path: Path) -> None:
     """Bottom grid: full frames across the window for context."""
     thumb_w, thumb_h = 160, 90
     n = len(win)
@@ -134,14 +154,28 @@ def draw_grid(cascade, frames, win, peak_global, out_path: Path) -> None:
         r, c = divmod(j, cols)
         y = r * (thumb_h + 26)
         x = c * (thumb_w + 6)
-        if gi == peak_global:
+        if gi == peak_sample_idx:
             border = (0, 0, 255)
             cv2.putText(tile, "PEAK", (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
             border = (120, 120, 120)
         grid[y + 3 : y + 3 + thumb_h, x + 3 : x + 3 + thumb_w] = tile
-        cv2.rectangle(grid, (x + 3, y + 3), (x + 3 + thumb_w - 1, y + 3 + thumb_h - 1), border, 1)
-        cv2.putText(grid, f"#{gi}", (x + 8, y + thumb_h + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (60, 60, 60), 1)
+        cv2.rectangle(
+            grid,
+            (x + 3, y + 3),
+            (x + 3 + thumb_w - 1, y + 3 + thumb_h - 1),
+            border,
+            1,
+        )
+        cv2.putText(
+            grid,
+            f"#{frame_nums[gi]}",
+            (x + 8, y + thumb_h + 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (60, 60, 60),
+            1,
+        )
     cv2.imwrite(str(out_path), grid)
 
 
@@ -184,41 +218,47 @@ def main() -> None:
         else:
             parts = row["source_id"].split("/")
             base = f'{parts[-2]}_{parts[-1]}.mp4'
-            rel = args.videos_dir / ("meld_test" if "test" in row["source_split"] else "meld_train") / base
+            split_dir = "meld_test" if "test" in row["source_split"] else "meld_train"
+            rel = args.videos_dir / split_dir / base
 
         if not rel.is_file():
             print(f"{ea_id}: missing video {rel}")
             continue
 
-        frames, fps = sample_frames(rel, 48)
-        peak_global, face_nums = find_peak_face_frame(cascade, frames, peak_idx)
+        frames, fps, frame_nums = sample_frames(rel, 48)
+        peak_sample_idx, peak_true_frame, face_nums = find_peak_face_frame(
+            cascade, frames, frame_nums, peak_idx
+        )
 
-        if peak_global is None:
+        if peak_sample_idx is None:
             print(f"{ea_id}: no face detected, skipped")
             continue
 
-        lo = max(0, peak_global - args.radius)
-        hi = min(len(frames) - 1, peak_global + args.radius)
+        lo = max(0, peak_sample_idx - args.radius)
+        hi = min(len(frames) - 1, peak_sample_idx + args.radius)
         win = list(range(lo, hi + 1))
 
         strip_path = args.out_dir / f"{ea_id}_face_strip.png"
         grid_path = args.out_dir / f"{ea_id}_frame_grid.png"
-        draw_strip(cascade, frames, win, peak_global, strip_path)
-        draw_grid(cascade, frames, win, peak_global, grid_path)
+        draw_strip(cascade, frames, frame_nums, win, peak_sample_idx, strip_path)
+        draw_grid(cascade, frames, frame_nums, win, peak_sample_idx, grid_path)
 
-        peak_sec = peak_global / fps if fps else float("nan")
-        face_peak_in_sampled = peak_global
+        peak_sec = peak_true_frame / fps if fps else float("nan")
         summary[ea_id] = {
             "peak_frame_index": peak_idx,
-            "peak_true_frame": peak_global,
+            "peak_sampled_frame_index": peak_sample_idx,
+            "peak_true_frame": peak_true_frame,
             "peak_sec": round(peak_sec, 3),
             "fps": round(fps, 3),
-            "window_frames": [f"{i}:{i/fps:.2f}s" for i in win],
+            "window_frames": [f"{frame_nums[i]}:{frame_nums[i]/fps:.2f}s" for i in win],
             "candidate_score": meta.get("candidate_score"),
             "frames_with_face": meta.get("frames_with_face"),
-            "peak_true_frame_index_in_video": face_peak_in_sampled,
+            "peak_true_frame_index_in_video": peak_true_frame,
         }
-        print(f"{ea_id}: peak L2 idx={peak_idx} true_frame={peak_global} t={peak_sec:.2f}s score={meta.get('candidate_score')}")
+        print(
+            f"{ea_id}: peak L2 idx={peak_idx} sampled_frame={peak_sample_idx} "
+            f"true_frame={peak_true_frame} t={peak_sec:.2f}s score={meta.get('candidate_score')}"
+        )
 
     out_json = args.out_dir / "_peak_map.json"
     out_json.write_text(json.dumps(summary, indent=1), encoding="utf-8")
