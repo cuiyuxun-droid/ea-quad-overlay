@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000015",
+  "segment_id": "EAQ000015_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": -0.25,
+      "arousal": 0.6,
+      "confidence": 0.9
+    },
+    "speech": {
+      "valence": -0.35,
+      "arousal": 0.75,
+      "confidence": 0.85
+    },
+    "macro": {
+      "valence": -0.3,
+      "arousal": 0.7,
+      "confidence": 0.9
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.299057,
+    "arousal": 0.682075,
+    "confidence": 0.883962
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.339623,
+    "speech": 0.320755,
+    "macro": 0.339622,
+    "micro": 0.0
+  },
+  "reason": "The confused question, emphatic delivery, and visibly puzzled reaction consistently indicate negative surprise at elevated arousal.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

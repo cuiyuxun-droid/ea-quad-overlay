@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000011",
+  "segment_id": "EAQ000011_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": 0.8,
+      "arousal": 0.6,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": 0.78,
+      "arousal": 0.55,
+      "confidence": 0.85
+    },
+    "macro": {
+      "valence": 0.75,
+      "arousal": 0.55,
+      "confidence": 0.6
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.780417,
+    "arousal": 0.569792,
+    "confidence": 0.827083
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.395833,
+    "speech": 0.354167,
+    "macro": 0.25,
+    "micro": 0.0
+  },
+  "reason": "The reassuring explanation and positive source labels agree with the visible light expression; macro confidence reflects sparse face detections.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

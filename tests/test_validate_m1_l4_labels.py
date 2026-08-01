@@ -103,3 +103,18 @@ def test_summary_reports_counts_means_and_low_confidence_ids() -> None:
     }
     assert summary["low_confidence_ids"] == []
     assert summary["pending_micro_review"] == 1
+
+
+def test_repository_m1_labels_are_complete_and_summarizable() -> None:
+    with (ROOT / "source_index" / "m1_sample_20.csv").open(
+        newline="",
+        encoding="utf-8",
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+
+    labels = validate_dataset(rows, ROOT / "annotations" / "l4_gold")
+    summary = summarize_annotations(labels)
+
+    assert summary["total"] == 20
+    assert summary["datasets"] == {"CH-SIMS": 11, "MELD": 9}
+    assert sum(summary["contradiction_types"].values()) == 20

@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000005",
+  "segment_id": "EAQ000005_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": -0.85,
+      "arousal": 0.75,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": -0.9,
+      "arousal": 0.82,
+      "confidence": 0.9
+    },
+    "macro": {
+      "valence": -0.88,
+      "arousal": 0.8,
+      "confidence": 0.9
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.876182,
+    "arousal": 0.789273,
+    "confidence": 0.917273
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.345455,
+    "speech": 0.327273,
+    "macro": 0.327272,
+    "micro": 0.0
+  },
+  "reason": "The complaint, comparatively strong audio level, and animated arguing expression all support high-arousal negative affect.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

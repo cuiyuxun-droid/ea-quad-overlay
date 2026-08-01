@@ -1,0 +1,57 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000012",
+  "segment_id": "EAQ000012_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": 0.15,
+      "arousal": 0.25,
+      "confidence": 0.85
+    },
+    "speech": {
+      "valence": 0.45,
+      "arousal": 0.62,
+      "confidence": 0.8
+    },
+    "macro": {
+      "valence": 0.4,
+      "arousal": 0.65,
+      "confidence": 0.9
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.342466,
+    "arousal": 0.513744,
+    "confidence": 0.844292
+  },
+  "contradiction_type": "hidden_emotion",
+  "involved_modalities": [
+    "text",
+    "speech",
+    "macro"
+  ],
+  "fusion_weights": {
+    "text": 0.310502,
+    "speech": 0.401826,
+    "macro": 0.287672,
+    "micro": 0.0
+  },
+  "reason": "The literal reply is weakly positive and restrained, while the surprised delivery and visible reaction carry a clearly stronger positive arousal signal.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

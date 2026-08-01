@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000017",
+  "segment_id": "EAQ000017_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": 0.1,
+      "arousal": 0.35,
+      "confidence": 0.85
+    },
+    "speech": {
+      "valence": 0.2,
+      "arousal": 0.4,
+      "confidence": 0.75
+    },
+    "macro": {
+      "valence": 0.15,
+      "arousal": 0.45,
+      "confidence": 0.75
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.147872,
+    "arousal": 0.397872,
+    "confidence": 0.78617
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.361702,
+    "speech": 0.319149,
+    "macro": 0.319149,
+    "micro": 0.0
+  },
+  "reason": "The curious question, quiet delivery, and mild surprised expression consistently indicate weak positive valence with moderate arousal.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000019",
+  "segment_id": "EAQ000019_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": 0.65,
+      "arousal": 0.8,
+      "confidence": 0.9
+    },
+    "speech": {
+      "valence": 0.8,
+      "arousal": 0.9,
+      "confidence": 0.85
+    },
+    "macro": {
+      "valence": 0.75,
+      "arousal": 0.85,
+      "confidence": 0.75
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.731,
+    "arousal": 0.849,
+    "confidence": 0.838
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.36,
+    "speech": 0.34,
+    "macro": 0.3,
+    "micro": 0.0
+  },
+  "reason": "The encouragement, energetic delivery, and cheering expression agree on high-arousal positive joy.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

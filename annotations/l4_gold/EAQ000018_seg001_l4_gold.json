@@ -1,0 +1,56 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000018",
+  "segment_id": "EAQ000018_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": -0.55,
+      "arousal": 0.65,
+      "confidence": 0.9
+    },
+    "speech": {
+      "valence": -0.45,
+      "arousal": 0.55,
+      "confidence": 0.75
+    },
+    "macro": {
+      "valence": -0.15,
+      "arousal": 0.3,
+      "confidence": 0.65
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.404348,
+    "arousal": 0.518478,
+    "confidence": 0.780435
+  },
+  "contradiction_type": "intensity_mismatch",
+  "involved_modalities": [
+    "text",
+    "macro"
+  ],
+  "fusion_weights": {
+    "text": 0.391304,
+    "speech": 0.326087,
+    "macro": 0.282609,
+    "micro": 0.0
+  },
+  "reason": "The angry source context and wording are clearly negative, but the visible explanation remains comparatively mild, producing a same-polarity intensity gap.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

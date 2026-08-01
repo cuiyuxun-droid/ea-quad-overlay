@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000010",
+  "segment_id": "EAQ000010_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": 0.9,
+      "arousal": 0.75,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": 0.9,
+      "arousal": 0.85,
+      "confidence": 0.9
+    },
+    "macro": {
+      "valence": 0.85,
+      "arousal": 0.8,
+      "confidence": 0.65
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.887,
+    "arousal": 0.799,
+    "confidence": 0.854
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.38,
+    "speech": 0.36,
+    "macro": 0.26,
+    "micro": 0.0
+  },
+  "reason": "The exaggerated CEO offer, strong audio peak, and smiling performance agree on highly aroused positive affect despite limited face-detection coverage.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}

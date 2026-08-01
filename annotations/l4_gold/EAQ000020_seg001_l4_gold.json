@@ -1,0 +1,53 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000020",
+  "segment_id": "EAQ000020_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": -0.75,
+      "arousal": 0.8,
+      "confidence": 0.9
+    },
+    "speech": {
+      "valence": -0.8,
+      "arousal": 0.85,
+      "confidence": 0.85
+    },
+    "macro": {
+      "valence": -0.7,
+      "arousal": 0.75,
+      "confidence": 0.6
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.755319,
+    "arousal": 0.805319,
+    "confidence": 0.805319
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.382979,
+    "speech": 0.361702,
+    "macro": 0.255319,
+    "micro": 0.0
+  },
+  "reason": "The emphatic refusal, angry delivery, and frustrated visual behavior agree on high-arousal negative affect; macro confidence is reduced because Issue #4 reported no face detections.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "pending_issue_5",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata"
+    ]
+  }
+}
