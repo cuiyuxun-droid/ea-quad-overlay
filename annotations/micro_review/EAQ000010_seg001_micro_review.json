@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000010",
+  "segment_id": "EAQ000010_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "到干妈的公司来做CEO啊，对对对，年薪一个亿",
+    "emotion_label": "Positive",
+    "candidate_score": 2.005538,
+    "l2_peak_frame_index": 29,
+    "frames_with_face": 37
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "峰值 3.32s 与恳求式说话（'经理经理，别忘了我那五十万'）口部同步，diff 平稳（~10-13）无瞬时峰。"
+  },
+  "event": null
+}

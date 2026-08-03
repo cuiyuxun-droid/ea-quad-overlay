@@ -36,3 +36,6 @@ venv/
 
 # Config overrides (user-specific)
 configs/*.local.yaml
+
+# Local work artifacts (downloaded videos, contact sheets, intermediate meta)
+.work/

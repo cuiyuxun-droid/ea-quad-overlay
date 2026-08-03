@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000009",
+  "segment_id": "EAQ000009_seg001",
+  "review_status": "uncertain",
+  "has_micro_expression": null,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "友德读懂了您对我的暗示。",
+    "emotion_label": "Positive",
+    "candidate_score": 2.333364,
+    "l2_peak_frame_index": 34,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "subtle_suppressed",
+    "note": "文本'友德读懂了您对我的暗示'含隐含情绪语境，真实峰值 1.48s；diff 升至 14.2 后回落，中低强度、疑似细微抿嘴/嘴角变化，无法从静帧定论，需第二审核人。"
+  },
+  "event": null
+}

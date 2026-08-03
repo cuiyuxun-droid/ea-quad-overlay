@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000008",
+  "segment_id": "EAQ000008_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "经理经理，别忘了我那五十万和副科长。",
+    "emotion_label": "Positive",
+    "candidate_score": 3.518134,
+    "l2_peak_frame_index": 1,
+    "frames_with_face": 47
+  },
+  "evidence": {
+    "primary_motion": "clip_onset",
+    "note": "峰值 frame 3 (0.12s) 为片段开头启动运动，含一次人脸检测跳变（diff 0.1）；后续说话口型主导。"
+  },
+  "event": null
+}

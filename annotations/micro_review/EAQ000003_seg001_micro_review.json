@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000003",
+  "segment_id": "EAQ000003_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "我不想嫁入什么豪门，我们不就是豪门吗？",
+    "emotion_label": "Negative",
+    "candidate_score": 3.41913,
+    "l2_peak_frame_index": 0,
+    "frames_with_face": 33
+  },
+  "evidence": {
+    "primary_motion": "clip_onset",
+    "note": "峰值 frame 0 (0.00s) 为首帧伪影，整体运动低（diff~2-3），不存在可判定的 onset 窗口。"
+  },
+  "event": null
+}

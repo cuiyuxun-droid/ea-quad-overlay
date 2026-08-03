@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000014",
+  "segment_id": "EAQ000014_seg001",
+  "review_status": "uncertain",
+  "has_micro_expression": null,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "Really?!",
+    "emotion_label": "surprise/positive",
+    "candidate_score": 3.467745,
+    "l2_peak_frame_index": 33,
+    "frames_with_face": 40
+  },
+  "evidence": {
+    "primary_motion": "expressive_speech",
+    "note": "惊讶台词 'Really?!'，真实峰值 2.63s、flow 达 10.7 且持续 5+ 帧，更接近宏表情级别的真实惊讶（AU1+2+5+26）；无法从静帧排除微表情泄漏成分，需第二审核人。"
+  },
+  "event": null
+}

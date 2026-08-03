@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000019",
+  "segment_id": "EAQ000019_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "Push 'em out, push 'em out, harder, harder.",
+    "emotion_label": "joy/positive",
+    "candidate_score": 3.221927,
+    "l2_peak_frame_index": 10,
+    "frames_with_face": 43
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "峰值 0.83s 与 'Push 'em out, harder!' 高亢说话/用力动作同步，diff 高位（21-22）持续，口部+头部主导。"
+  },
+  "event": null
+}
