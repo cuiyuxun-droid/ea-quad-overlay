@@ -23,6 +23,7 @@ from ea_quad_overlay.l4_labels import (  # noqa: E402
 
 DEFAULT_INDEX = ROOT / "source_index" / "m1_sample_20.csv"
 DEFAULT_ANNOTATIONS = ROOT / "annotations" / "l4_gold"
+DEFAULT_MICRO_REVIEWS = ROOT / "annotations" / "micro_review"
 
 
 def read_index(path: Path) -> list[dict[str, str]]:
@@ -40,11 +41,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", type=Path, default=DEFAULT_INDEX)
     parser.add_argument("--annotations", type=Path, default=DEFAULT_ANNOTATIONS)
+    parser.add_argument("--micro-reviews", type=Path, default=DEFAULT_MICRO_REVIEWS)
     args = parser.parse_args(argv)
 
     try:
         rows = read_index(args.index)
-        labels = validate_dataset(rows, args.annotations)
+        labels = validate_dataset(rows, args.annotations, args.micro_reviews)
     except (OSError, csv.Error, json.JSONDecodeError, L4ValidationError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

@@ -20,10 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ROOT / "scripts" / "validate_m1_l4_labels.py"
 
 
-def write_complete_temporary_dataset(tmp_path: Path) -> tuple[Path, Path]:
+def write_complete_temporary_dataset(tmp_path: Path) -> tuple[Path, Path, Path]:
     index_path = tmp_path / "index.csv"
     labels_dir = tmp_path / "labels"
+    micro_reviews_dir = tmp_path / "micro_reviews"
     labels_dir.mkdir()
+    micro_reviews_dir.mkdir()
     with index_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["ea_id", "source_dataset"])
         writer.writeheader()
@@ -32,7 +34,19 @@ def write_complete_temporary_dataset(tmp_path: Path) -> tuple[Path, Path]:
         json.dumps(make_valid_label()),
         encoding="utf-8",
     )
-    return index_path, labels_dir
+    (micro_reviews_dir / "EAQ000001_seg001_micro_review.json").write_text(
+        json.dumps(
+            {
+                "ea_id": "EAQ000001",
+                "segment_id": "EAQ000001_seg001",
+                "review_status": "negative",
+                "has_micro_expression": False,
+                "event": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return index_path, labels_dir, micro_reviews_dir
 
 
 def test_dataset_rejects_missing_annotation(tmp_path: Path) -> None:
@@ -59,7 +73,9 @@ def test_dataset_prefixes_invalid_file_errors(tmp_path: Path) -> None:
 
 
 def test_cli_accepts_one_complete_temporary_dataset(tmp_path: Path) -> None:
-    index_path, labels_dir = write_complete_temporary_dataset(tmp_path)
+    index_path, labels_dir, micro_reviews_dir = write_complete_temporary_dataset(
+        tmp_path
+    )
 
     result = subprocess.run(
         [
@@ -69,6 +85,8 @@ def test_cli_accepts_one_complete_temporary_dataset(tmp_path: Path) -> None:
             str(index_path),
             "--annotations",
             str(labels_dir),
+            "--micro-reviews",
+            str(micro_reviews_dir),
         ],
         capture_output=True,
         text=True,
@@ -115,7 +133,9 @@ def test_cli_reports_malformed_json_without_traceback(
     payload: object,
     message: str,
 ) -> None:
-    index_path, labels_dir = write_complete_temporary_dataset(tmp_path)
+    index_path, labels_dir, micro_reviews_dir = write_complete_temporary_dataset(
+        tmp_path
+    )
     (labels_dir / "EAQ000001_seg001_l4_gold.json").write_text(
         json.dumps(payload),
         encoding="utf-8",
@@ -129,6 +149,8 @@ def test_cli_reports_malformed_json_without_traceback(
             str(index_path),
             "--annotations",
             str(labels_dir),
+            "--micro-reviews",
+            str(micro_reviews_dir),
         ],
         capture_output=True,
         text=True,
@@ -163,7 +185,26 @@ def test_summary_reports_counts_means_and_low_confidence_ids() -> None:
         "micro": 0.0,
     }
     assert summary["low_confidence_ids"] == []
-    assert summary["pending_micro_review"] == 1
+    assert summary["micro_review_statuses"] == {"negative": 1}
+    assert summary["pending_micro_review"] == 0
+
+
+def test_dataset_rejects_l4_status_that_disagrees_with_micro_review(
+    tmp_path: Path,
+) -> None:
+    index_path, labels_dir, micro_reviews_dir = write_complete_temporary_dataset(
+        tmp_path
+    )
+    label_path = labels_dir / "EAQ000001_seg001_l4_gold.json"
+    label = json.loads(label_path.read_text(encoding="utf-8"))
+    label["annotation_meta"]["micro_review_status"] = "uncertain"
+    label_path.write_text(json.dumps(label), encoding="utf-8")
+
+    with index_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+
+    with pytest.raises(L4ValidationError, match="micro_review_status must match"):
+        validate_dataset(rows, labels_dir, micro_reviews_dir)
 
 
 def test_repository_m1_labels_are_complete_and_summarizable() -> None:
@@ -173,9 +214,15 @@ def test_repository_m1_labels_are_complete_and_summarizable() -> None:
     ) as handle:
         rows = list(csv.DictReader(handle))
 
-    labels = validate_dataset(rows, ROOT / "annotations" / "l4_gold")
+    labels = validate_dataset(
+        rows,
+        ROOT / "annotations" / "l4_gold",
+        ROOT / "annotations" / "micro_review",
+    )
     summary = summarize_annotations(labels)
 
     assert summary["total"] == 20
     assert summary["datasets"] == {"CH-SIMS": 11, "MELD": 9}
     assert sum(summary["contradiction_types"].values()) == 20
+    assert summary["micro_review_statuses"] == {"negative": 14, "uncertain": 6}
+    assert summary["pending_micro_review"] == 0

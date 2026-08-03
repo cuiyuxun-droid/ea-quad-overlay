@@ -46,12 +46,13 @@
   "annotation_meta": {
     "method": "evidence_triangulation_single_pass",
     "review_status": "single_pass_pending_second_review",
-    "micro_review_status": "pending_issue_5",
+    "micro_review_status": "uncertain",
     "evidence": [
       "source_annotation",
       "raw_audio",
       "raw_video",
-      "issue_4_quality_metadata"
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
     ]
   }
 }

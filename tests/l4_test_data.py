@@ -28,7 +28,12 @@ def make_valid_label() -> dict[str, Any]:
         "annotation_meta": {
             "method": "evidence_triangulation_single_pass",
             "review_status": "single_pass_pending_second_review",
-            "micro_review_status": "pending_issue_5",
-            "evidence": ["source_annotation", "raw_audio", "raw_video"],
+            "micro_review_status": "negative",
+            "evidence": [
+                "source_annotation",
+                "raw_audio",
+                "raw_video",
+                "issue_5_micro_review",
+            ],
         },
     }

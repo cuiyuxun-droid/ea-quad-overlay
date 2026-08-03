@@ -87,6 +87,53 @@ def test_valid_annotation_passes() -> None:
     validate_annotation(make_valid_label(), "EAQ000001", "CH-SIMS")
 
 
+def test_negative_micro_review_rejects_nonzero_micro_signal() -> None:
+    label = make_valid_label()
+    label["modality_va"]["micro"].update(
+        valence=-0.2,
+        arousal=0.3,
+        confidence=0.4,
+    )
+    label["fusion_weights"] = calculate_fusion_weights(
+        {
+            modality: values["confidence"]
+            for modality, values in label["modality_va"].items()
+        },
+        label["contradiction_type"],
+        label["annotation_meta"]["micro_review_status"],
+    )
+    _refresh_inter_va(label)
+
+    with pytest.raises(L4ValidationError, match="negative micro review requires zero"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_uncertain_micro_review_rejects_nonzero_micro_signal() -> None:
+    label = make_valid_label()
+    label["annotation_meta"]["micro_review_status"] = "uncertain"
+    label["modality_va"]["micro"]["confidence"] = 0.2
+    label["fusion_weights"] = calculate_fusion_weights(
+        {
+            modality: values["confidence"]
+            for modality, values in label["modality_va"].items()
+        },
+        label["contradiction_type"],
+        label["annotation_meta"]["micro_review_status"],
+    )
+    _refresh_inter_va(label)
+
+    with pytest.raises(L4ValidationError, match="uncertain micro review requires zero"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
+def test_positive_micro_review_requires_nonzero_micro_signal() -> None:
+    label = make_valid_label()
+    label["annotation_meta"]["micro_review_status"] = "positive"
+
+    with pytest.raises(L4ValidationError, match="positive micro review requires nonzero"):
+        validate_annotation(label, "EAQ000001", "CH-SIMS")
+
+
 def test_annotation_root_must_be_an_object() -> None:
     with pytest.raises(L4ValidationError, match="annotation must be an object"):
         validate_annotation([], "EAQ000001", "CH-SIMS")  # type: ignore[arg-type]
@@ -187,6 +234,7 @@ def test_inter_va_must_match_weighted_modalities() -> None:
 
 def test_pending_micro_caps_are_enforced() -> None:
     label = make_valid_label()
+    label["annotation_meta"]["micro_review_status"] = "pending_issue_5"
     label["modality_va"]["micro"]["confidence"] = 0.61
 
     with pytest.raises(L4ValidationError, match="micro confidence"):

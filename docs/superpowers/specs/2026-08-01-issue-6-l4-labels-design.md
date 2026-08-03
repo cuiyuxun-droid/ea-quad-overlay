@@ -3,9 +3,9 @@
 ## Goal
 
 Produce one traceable L4 annotation JSON for each of the 20 M1 samples, plus a
-validation script, behavior-focused tests, and a statistics report. The result
-must satisfy GitHub Issue #6 without presenting unreviewed micro-expression
-signals as completed Issue #5 human review.
+validation script, behavior-focused tests, and a statistics report. After
+Issue #5 merged, the result must preserve its `negative` and `uncertain`
+decisions without turning uncertain reviews into confirmed negative evidence.
 
 ## Scope
 
@@ -17,6 +17,7 @@ This change will:
   `reports/m1_l4_label_stats.md`;
 - use raw media and source annotations as the primary evidence;
 - use Issue #4 artifacts only as modality availability and quality evidence.
+- cross-check L4 micro metadata against the merged Issue #5 review files.
 
 This change will not:
 
@@ -43,6 +44,8 @@ Evidence is considered in this order:
 4. Issue #4 feature metadata for extraction status, duration, face-detection
    coverage, and micro candidate timing. Generic embeddings are not interpreted
    as VA predictions.
+5. Issue #5 micro-review JSON for the final `positive`, `negative`, or
+   `uncertain` decision.
 
 The server is accessed read-only. Credentials are supplied at runtime and never
 written into repository files.
@@ -77,8 +80,13 @@ Each M1 sample produces exactly one file named
   "annotation_meta": {
     "method": "evidence_triangulation_single_pass",
     "review_status": "single_pass_pending_second_review",
-    "micro_review_status": "pending_issue_5",
-    "evidence": ["source_annotation", "raw_audio", "raw_video"]
+    "micro_review_status": "negative",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_5_micro_review"
+    ]
   }
 }
 ```
@@ -123,13 +131,19 @@ label must identify the conflicting modalities and explain the observed cue.
 
 ## Confidence, Weights, and Inter-VA
 
-The four modality confidences reflect evidence quality. While Issue #5 is
-incomplete:
+The four modality confidences reflect evidence quality. Before Issue #5 is
+available, the legacy `pending_issue_5` state applies these limits:
 
 - micro confidence is capped at `0.60`;
 - micro fusion weight is capped at `0.10`;
 - no confirmed micro signal is represented as VA `(0.0, 0.0)` with confidence
   `0.0` and weight `0.0`, not as a negative micro-expression decision.
+
+Once Issue #5 is available, L4 stores its exact review status. `negative` and
+`uncertain` both require zero micro VA, confidence, and weight because neither
+confirms a usable event; `positive` requires nonzero micro confidence and
+weight. Dataset validation rejects any L4 status that differs from the matching
+Issue #5 JSON.
 
 Initial raw weights are calculated as:
 
@@ -166,11 +180,12 @@ no raw embeddings or media.
 
 ### Validator
 
-`scripts/validate_m1_l4_labels.py` reads the M1 source index and annotation
-directory. It validates file count, naming, identity, schema, ranges, enum
-values, involved-modality rules, weight normalization, inter-VA calculations,
-reason presence, and pending-micro caps. It exits non-zero with a specific file
-and field error on failure.
+`scripts/validate_m1_l4_labels.py` reads the M1 source index, L4 annotation
+directory, and Issue #5 micro-review directory. It validates file count,
+naming, identity, schema, ranges, enum values, involved-modality rules, weight
+normalization, inter-VA calculations, reason presence, review-status agreement,
+and micro-signal semantics. It exits non-zero with a specific file and field
+error on failure.
 
 ### Tests
 
@@ -188,7 +203,7 @@ empty reason, and a pending-micro cap violation.
 - contradiction-type distribution;
 - mean modality confidence and fusion weight;
 - low-confidence and non-consistent samples;
-- the number of samples pending Issue #5 micro review;
+- the Issue #5 micro-review status distribution;
 - the exact validation command and result;
 - the single-pass review limitation.
 
@@ -214,7 +229,9 @@ M1 source index
 - Missing Issue #4 metadata lowers available evidence but does not block raw
   media review. The limitation is recorded in `annotation_meta.evidence` and the
   report.
-- Missing Issue #5 output invokes the explicit pending-micro caps above.
+- Missing Issue #5 output invokes the explicit pending-micro caps above for
+  legacy labels; the repository-level M1 validation now requires all 20 merged
+  review files and exact status agreement.
 - Ambiguous cues are evaluated through the stated priority and thresholds. A
   sample is labeled `consistent` only when its numeric conditions hold; every
   low-confidence decision is listed in the report and explains the ambiguity in
@@ -228,6 +245,7 @@ Implementation follows red-green-refactor for the validator. Completion requires
 ```powershell
 python -m pytest scripts/tests/test_validate_m1_l4_labels.py -q
 python scripts/validate_m1_sample_20.py
+python scripts/micro_review/validate_micro_reviews.py
 python scripts/validate_m1_l4_labels.py
 python -m pytest -q
 ```

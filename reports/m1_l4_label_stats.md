@@ -42,6 +42,19 @@ schema and deterministic cross-field validation.
 | macro | 0.760000 | 0.295273 |
 | micro | 0.000000 | 0.000000 |
 
+## Issue #5 micro-review status
+
+| Status | Count | L4 treatment |
+| --- | ---: | --- |
+| `negative` | 14 | micro VA, confidence, and fusion weight remain zero |
+| `uncertain` | 6 | micro VA, confidence, and fusion weight remain zero pending second review |
+| `positive` | 0 | no confirmed positive micro-expression is available in M1 |
+
+Every L4 annotation is cross-checked against its corresponding
+`annotations/micro_review/*_micro_review.json` file. The six uncertain samples
+are `EAQ000004`, `EAQ000009`, `EAQ000013`, `EAQ000014`, `EAQ000015`, and
+`EAQ000020`.
+
 ## Non-consistent and low-confidence samples
 
 | EA ID | Type | Involved modalities |
@@ -67,10 +80,11 @@ confidence rather than being hidden by the aggregate value.
 - Issue #4 feature metadata was inspected for extraction status, face-detection
   coverage, and micro-candidate timing. Its generic embeddings were not treated
   as VA predictions.
-- Issue #5 has not supplied human-confirmed micro-expression labels. Therefore
-  all 20 records use `micro_review_status: pending_issue_5`, micro VA `(0, 0)`,
-  confidence `0`, and fusion weight `0`. This is an explicit absence of a
-  confirmed cue, not a claim that no micro-expression exists.
+- Issue #5 / PR #30 supplied 20 micro-review records: 14 `negative`, 6
+  `uncertain`, and 0 `positive`. The L4 metadata now mirrors those statuses
+  exactly. Because no positive event was confirmed, all micro VA values,
+  confidences, and fusion weights remain zero; the six uncertain records are
+  not treated as negative decisions.
 - All 20 records use `review_status: single_pass_pending_second_review`; a
   second reviewer should resolve disagreements before a future adjudicated-gold
   release.
@@ -91,5 +105,5 @@ OK: validated 20 L4 labels
 
 The validator checks exact source-index coverage, filenames and identity,
 required fields, legal enums, numeric ranges, unique involved modalities,
-pending-Issue-#5 caps, unit-sum weights, deterministic weight policy, and
-weighted `inter_va` equality.
+Issue #5 status agreement and zero/nonzero micro-signal semantics, unit-sum
+weights, deterministic weight policy, and weighted `inter_va` equality.

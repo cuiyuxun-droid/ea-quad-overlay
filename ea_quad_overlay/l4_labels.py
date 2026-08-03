@@ -22,6 +22,7 @@ CONTRADICTION_TYPES = (
     "hidden_emotion",
     "intensity_mismatch",
 )
+MICRO_REVIEW_STATUSES = ("pending_issue_5", "positive", "negative", "uncertain")
 
 TYPE_MULTIPLIERS = {
     "consistent": {"text": 1.0, "speech": 1.0, "macro": 1.0, "micro": 1.0},
@@ -55,6 +56,7 @@ ALLOWED_EVIDENCE = {
     "raw_audio",
     "raw_video",
     "issue_4_quality_metadata",
+    "issue_5_micro_review",
 }
 EA_ID_RE = re.compile(r"^EAQ\d{6}$")
 
@@ -98,7 +100,13 @@ def calculate_fusion_weights(
     if contradiction_type not in TYPE_MULTIPLIERS:
         raise ValueError(f"unsupported contradiction_type: {contradiction_type}")
 
-    reliability = {"text": 1.0, "speech": 1.0, "macro": 1.0, "micro": 0.5}
+    micro_reliability = 0.5 if micro_review_status == "pending_issue_5" else 1.0
+    reliability = {
+        "text": 1.0,
+        "speech": 1.0,
+        "macro": 1.0,
+        "micro": micro_reliability,
+    }
     raw = {
         modality: float(confidences[modality])
         * reliability[modality]
@@ -273,7 +281,7 @@ def validate_annotation(
             errors.append("annotation_meta.method is invalid")
         if meta.get("review_status") != "single_pass_pending_second_review":
             errors.append("annotation_meta.review_status is invalid")
-        if meta.get("micro_review_status") != "pending_issue_5":
+        if meta.get("micro_review_status") not in MICRO_REVIEW_STATUSES:
             errors.append("annotation_meta.micro_review_status is invalid")
         evidence = meta.get("evidence")
         if (
@@ -330,6 +338,19 @@ def validate_annotation(
                 errors.append("pending micro confidence exceeds 0.60")
             if float(weights["micro"]) > 0.10:
                 errors.append("pending micro fusion weight exceeds 0.10")
+        elif meta.get("micro_review_status") in {"negative", "uncertain"}:
+            status = str(meta["micro_review_status"])
+            micro_values = modality_va["micro"]
+            if any(float(micro_values[field]) != 0.0 for field in VA_FIELDS) or float(
+                weights["micro"]
+            ) != 0.0:
+                errors.append(f"{status} micro review requires zero micro signal")
+        elif meta.get("micro_review_status") == "positive":
+            if (
+                float(modality_va["micro"]["confidence"]) <= 0.0
+                or float(weights["micro"]) <= 0.0
+            ):
+                errors.append("positive micro review requires nonzero micro signal")
 
     reason = label.get("reason")
     if not isinstance(reason, str) or not reason.strip():
@@ -342,6 +363,7 @@ def validate_annotation(
 def validate_dataset(
     index_rows: Sequence[Mapping[str, str]],
     annotations_dir: Path,
+    micro_reviews_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Validate exact source-index coverage and return labels in index order."""
     source_ids = [row["ea_id"] for row in index_rows]
@@ -373,6 +395,29 @@ def validate_dataset(
         try:
             label = json.loads(path.read_text(encoding="utf-8"))
             validate_annotation(label, row["ea_id"], row["source_dataset"])
+            if micro_reviews_dir is not None:
+                review_filename = f"{row['ea_id']}_seg001_micro_review.json"
+                review_path = micro_reviews_dir / review_filename
+                if not review_path.is_file():
+                    raise L4ValidationError(
+                        f"missing micro review: {review_filename}"
+                    )
+                review = json.loads(review_path.read_text(encoding="utf-8"))
+                if not isinstance(review, Mapping):
+                    raise L4ValidationError(
+                        f"{review_filename}: micro review must be an object"
+                    )
+                review_status = review.get("review_status")
+                if review_status not in MICRO_REVIEW_STATUSES[1:]:
+                    raise L4ValidationError(
+                        f"{review_filename}: invalid review_status"
+                    )
+                l4_status = label["annotation_meta"]["micro_review_status"]
+                if l4_status != review_status:
+                    raise L4ValidationError(
+                        "micro_review_status must match "
+                        f"{review_filename}: expected {review_status}, got {l4_status}"
+                    )
         except (json.JSONDecodeError, L4ValidationError) as exc:
             raise L4ValidationError(f"{filename}: {exc}") from exc
         labels.append(label)
@@ -383,6 +428,9 @@ def summarize_annotations(labels: Sequence[Mapping[str, Any]]) -> dict[str, Any]
     """Return stable aggregate statistics for validated annotations."""
     datasets = Counter(str(label["source_dataset"]) for label in labels)
     contradiction_types = Counter(str(label["contradiction_type"]) for label in labels)
+    micro_review_statuses = Counter(
+        str(label["annotation_meta"]["micro_review_status"]) for label in labels
+    )
 
     def mean_for(section: str, modality: str, field: str | None = None) -> float:
         if not labels:
@@ -397,6 +445,7 @@ def summarize_annotations(labels: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "total": len(labels),
         "datasets": dict(datasets),
         "contradiction_types": dict(contradiction_types),
+        "micro_review_statuses": dict(micro_review_statuses),
         "mean_confidence": {
             modality: mean_for("modality_va", modality, "confidence")
             for modality in MODALITIES

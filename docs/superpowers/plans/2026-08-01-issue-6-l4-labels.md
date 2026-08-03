@@ -1,5 +1,11 @@
 # Issue #6 M1 L4 Labels Implementation Plan
 
+> 2026-08-03 follow-up: PR #30 merged Issue #5 with 14 `negative`, 6
+> `uncertain`, and 0 `positive` micro reviews. The implementation now
+> cross-validates those source statuses, replaces `pending_issue_5` in the 20
+> repository labels, and keeps micro VA/confidence/weight at zero because no
+> positive event was confirmed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Produce validated, evidence-traceable L4 labels for all 20 M1 samples and an accurate statistics report.
