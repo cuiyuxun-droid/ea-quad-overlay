@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000018",
+  "segment_id": "EAQ000018_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "Oh. That's so Monica can keep track. That way if one on them is missing, she can be like, 'Where's number 27?!'",
+    "emotion_label": "anger/negative",
+    "candidate_score": 2.093771,
+    "l2_peak_frame_index": 19,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "峰值 2.71s 处于怒气台词中，diff 高位（20-22）持续后单调衰减，为表演型愤怒说话/头部运动，无孤立微表情特征。"
+  },
+  "event": null
+}

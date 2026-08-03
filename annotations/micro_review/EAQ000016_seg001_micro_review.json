@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000016",
+  "segment_id": "EAQ000016_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "You know? Forget it!",
+    "emotion_label": "sadness/negative",
+    "candidate_score": 2.365267,
+    "l2_peak_frame_index": 30,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "detection_glitch",
+    "note": "峰值 1.38s 处为单帧人脸检测跳变伪影（diff 0.6→37.2→1.5，flow 0.1→3.2→0.2），非连续面部运动；'You know? Forget it!'为普通说话。"
+  },
+  "event": null
+}

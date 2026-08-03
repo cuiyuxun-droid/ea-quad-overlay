@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000001",
+  "segment_id": "EAQ000001_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "我不想嫁给李茶",
+    "emotion_label": "Negative",
+    "candidate_score": 2.566228,
+    "l2_peak_frame_index": 12,
+    "frames_with_face": 32
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "口部动作与说话节奏同步（'我不想嫁给李茶'），峰值 0.48s 无孤立微表情特征；diff 峰值 8.5 且前后对称回落，为语音驱动的口部运动。"
+  },
+  "event": null
+}

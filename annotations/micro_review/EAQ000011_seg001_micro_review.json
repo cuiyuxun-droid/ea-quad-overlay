@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000011",
+  "segment_id": "EAQ000011_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "哦，对对对，她身份很特别，不想让我张扬出去。",
+    "emotion_label": "Positive",
+    "candidate_score": 2.952135,
+    "l2_peak_frame_index": 11,
+    "frames_with_face": 39
+  },
+  "evidence": {
+    "primary_motion": "head_nod",
+    "note": "峰值 1.00s 处单帧 diff 突增至 21（flow 3.07）后回落，对应'对对对'强调性点头动作，属头部姿态运动而非面部微表情。"
+  },
+  "event": null
+}

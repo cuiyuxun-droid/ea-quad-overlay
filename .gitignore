@@ -1,12 +1,19 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.egg-info/
 dist/
 build/
 
-# Data
+# Caches
+.cache/
+.pytest_cache/
+
+# Data and generated local artifacts
 outputs/
+/data/
+source_index/m1_sample_20_local.csv
 *.pt
 *.pth
 *.onnx
@@ -29,3 +36,6 @@ venv/
 
 # Config overrides (user-specific)
 configs/*.local.yaml
+
+# Local work artifacts (downloaded videos, contact sheets, intermediate meta)
+.work/

@@ -1,0 +1,15 @@
+{
+  "ea_id": "EAQ000006",
+  "segment_id": "EAQ000006_seg001",
+  "modality": "speech",
+  "shape": [
+    768
+  ],
+  "dtype": "float32",
+  "feature_path": "features/speech/EAQ000006_seg001_speech.npy",
+  "model": "facebook/wav2vec2-base-960h",
+  "status": "ok",
+  "duration_sec": 5.9307,
+  "sample_rate": 16000,
+  "elapsed_sec": 0.1189
+}

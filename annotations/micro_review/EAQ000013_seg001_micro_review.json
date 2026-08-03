@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000013",
+  "segment_id": "EAQ000013_seg001",
+  "review_status": "uncertain",
+  "has_micro_expression": null,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "No don't I beg of you!",
+    "emotion_label": "fear/negative",
+    "candidate_score": 3.540351,
+    "l2_peak_frame_index": 10,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "expressive_speech",
+    "note": "恐惧台词 'No don't I beg of you!'，真实峰值 0.42s 靠前、候选分 3.54，diff 中低（3-7.5）含 flow 3.27 初始强调；说话起始强调 vs 微表情泄漏无法定论，需第二审核人。"
+  },
+  "event": null
+}

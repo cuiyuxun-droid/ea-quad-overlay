@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000005",
+  "segment_id": "EAQ000005_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "我在这消费这么多钱，我低血糖吃块糖还不行了",
+    "emotion_label": "Negative",
+    "candidate_score": 2.969198,
+    "l2_peak_frame_index": 23,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "峰值 1.08s 与长句说话口型同步，diff 高位（16-31）持续多个帧，为语音驱动大位移口部/头部运动，无孤立微表情特征。"
+  },
+  "event": null
+}

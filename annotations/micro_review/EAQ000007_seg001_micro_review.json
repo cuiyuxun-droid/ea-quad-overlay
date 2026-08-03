@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000007",
+  "segment_id": "EAQ000007_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "我刚才是一害怕我就跟王安迪撒了个谎",
+    "emotion_label": "Negative",
+    "candidate_score": 3.973332,
+    "l2_peak_frame_index": 44,
+    "frames_with_face": 47
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "峰值 2.44s 处于长句说话中，diff/flow 全程平稳（~7-8），无明显瞬时峰值，为连续语音口部运动。"
+  },
+  "event": null
+}

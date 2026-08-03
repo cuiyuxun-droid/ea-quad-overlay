@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000004",
+  "segment_id": "EAQ000004_seg001",
+  "review_status": "uncertain",
+  "has_micro_expression": null,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "CH-SIMS",
+    "text": "有那么明显吗？",
+    "emotion_label": "Negative",
+    "candidate_score": 4.051966,
+    "l2_peak_frame_index": 24,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "expressive_speech",
+    "note": "候选分 4.05（CH-SIMS 组最高）但真实峰值 1.96s 处绝对运动低且递减（pre 2.98/peak 2.76/post 1.84）；'有那么明显吗?'自省问句存在疑似短暂皱眉/嘴部变化，无法从静帧排除微表情，需第二审核人。"
+  },
+  "event": null
+}

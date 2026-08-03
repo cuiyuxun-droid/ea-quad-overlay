@@ -1,0 +1,21 @@
+{
+  "ea_id": "EAQ000012",
+  "segment_id": "EAQ000012_seg001",
+  "review_status": "negative",
+  "has_micro_expression": false,
+  "reviewer": "issue-05-reviewer-1",
+  "review_date": "2026-08-01",
+  "source_context": {
+    "dataset": "MELD",
+    "text": "My duties? All right.",
+    "emotion_label": "surprise/positive",
+    "candidate_score": 2.321359,
+    "l2_peak_frame_index": 40,
+    "frames_with_face": 48
+  },
+  "evidence": {
+    "primary_motion": "speech_articulation",
+    "note": "峰值 5.46s 处于 'My duties?  All right.' 尾段说话中，diff 从 1.2 单调爬升至 7.7，为持续口型运动；MELD 表演型表情。"
+  },
+  "event": null
+}
