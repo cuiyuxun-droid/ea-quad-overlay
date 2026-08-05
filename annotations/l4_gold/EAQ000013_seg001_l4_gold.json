@@ -1,0 +1,58 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000013",
+  "segment_id": "EAQ000013_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": -0.8,
+      "arousal": 0.85,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": -0.75,
+      "arousal": 0.9,
+      "confidence": 0.9
+    },
+    "macro": {
+      "valence": 0.25,
+      "arousal": 0.65,
+      "confidence": 0.9
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.460842,
+    "arousal": 0.81021,
+    "confidence": 0.914
+  },
+  "contradiction_type": "masking",
+  "involved_modalities": [
+    "text",
+    "speech",
+    "macro"
+  ],
+  "fusion_weights": {
+    "text": 0.28,
+    "speech": 0.416842,
+    "macro": 0.303158,
+    "micro": 0.0
+  },
+  "reason": "The plea and fearful delivery are strongly negative, while the outward animated smile is positive, consistent with an overt display masking the negative state.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "uncertain",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
+    ]
+  }
+}

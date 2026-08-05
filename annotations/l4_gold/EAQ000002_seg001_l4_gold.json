@@ -1,0 +1,54 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000002",
+  "segment_id": "EAQ000002_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": 0.75,
+      "arousal": 0.65,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": 0.65,
+      "arousal": 0.65,
+      "confidence": 0.85
+    },
+    "macro": {
+      "valence": 0.7,
+      "arousal": 0.7,
+      "confidence": 0.65
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.702041,
+    "arousal": 0.663265,
+    "confidence": 0.835714
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.387755,
+    "speech": 0.346939,
+    "macro": 0.265306,
+    "micro": 0.0
+  },
+  "reason": "The congratulatory wording, upbeat delivery, and animated positive display agree; macro confidence is reduced because the Issue #4 face detector missed the face.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "negative",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
+    ]
+  }
+}

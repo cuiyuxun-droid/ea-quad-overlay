@@ -1,0 +1,57 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000009",
+  "segment_id": "EAQ000009_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": 0.5,
+      "arousal": 0.4,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": 0.55,
+      "arousal": 0.45,
+      "confidence": 0.85
+    },
+    "macro": {
+      "valence": 0.9,
+      "arousal": 0.7,
+      "confidence": 0.6
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.617708,
+    "arousal": 0.492708,
+    "confidence": 0.827083
+  },
+  "contradiction_type": "intensity_mismatch",
+  "involved_modalities": [
+    "text",
+    "macro"
+  ],
+  "fusion_weights": {
+    "text": 0.395833,
+    "speech": 0.354167,
+    "macro": 0.25,
+    "micro": 0.0
+  },
+  "reason": "The verbal and visual signals are positive, but the smiling display is substantially stronger than the restrained wording; macro confidence is lowered by zero Issue #4 face detections.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "uncertain",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
+    ]
+  }
+}

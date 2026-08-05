@@ -1,0 +1,54 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000003",
+  "segment_id": "EAQ000003_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": -0.7,
+      "arousal": 0.55,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": -0.82,
+      "arousal": 0.62,
+      "confidence": 0.9
+    },
+    "macro": {
+      "valence": -0.8,
+      "arousal": 0.58,
+      "confidence": 0.75
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.770385,
+    "arousal": 0.582885,
+    "confidence": 0.875
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.365385,
+    "speech": 0.346154,
+    "macro": 0.288461,
+    "micro": 0.0
+  },
+  "reason": "The rejection in the transcript, negative speech label, and upset facial display consistently indicate moderately aroused negative affect.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "negative",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
+    ]
+  }
+}

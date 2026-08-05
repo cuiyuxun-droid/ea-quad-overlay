@@ -1,0 +1,57 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000008",
+  "segment_id": "EAQ000008_seg001",
+  "source_dataset": "CH-SIMS",
+  "modality_va": {
+    "text": {
+      "valence": 0.35,
+      "arousal": 0.45,
+      "confidence": 0.95
+    },
+    "speech": {
+      "valence": 0.5,
+      "arousal": 0.45,
+      "confidence": 0.8
+    },
+    "macro": {
+      "valence": 0.9,
+      "arousal": 0.8,
+      "confidence": 0.9
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": 0.582076,
+    "arousal": 0.568868,
+    "confidence": 0.887736
+  },
+  "contradiction_type": "intensity_mismatch",
+  "involved_modalities": [
+    "text",
+    "macro"
+  ],
+  "fusion_weights": {
+    "text": 0.35849,
+    "speech": 0.301887,
+    "macro": 0.339623,
+    "micro": 0.0
+  },
+  "reason": "All confident modalities are positive, but the highly animated facial display is materially stronger than the modest wording and quiet delivery.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "negative",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
+    ]
+  }
+}

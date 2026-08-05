@@ -1,0 +1,54 @@
+{
+  "schema_version": "m1-l4-gold-v1",
+  "ea_id": "EAQ000016",
+  "segment_id": "EAQ000016_seg001",
+  "source_dataset": "MELD",
+  "modality_va": {
+    "text": {
+      "valence": -0.7,
+      "arousal": 0.6,
+      "confidence": 0.9
+    },
+    "speech": {
+      "valence": -0.75,
+      "arousal": 0.55,
+      "confidence": 0.8
+    },
+    "macro": {
+      "valence": -0.65,
+      "arousal": 0.5,
+      "confidence": 0.65
+    },
+    "micro": {
+      "valence": 0.0,
+      "arousal": 0.0,
+      "confidence": 0.0
+    }
+  },
+  "inter_va": {
+    "valence": -0.703191,
+    "arousal": 0.555319,
+    "confidence": 0.796809
+  },
+  "contradiction_type": "consistent",
+  "involved_modalities": [],
+  "fusion_weights": {
+    "text": 0.382979,
+    "speech": 0.340425,
+    "macro": 0.276596,
+    "micro": 0.0
+  },
+  "reason": "The dismissive wording, subdued delivery, and sad-frustrated expression agree on moderately aroused negative affect; partial face coverage lowers macro confidence.",
+  "annotation_meta": {
+    "method": "evidence_triangulation_single_pass",
+    "review_status": "single_pass_pending_second_review",
+    "micro_review_status": "negative",
+    "evidence": [
+      "source_annotation",
+      "raw_audio",
+      "raw_video",
+      "issue_4_quality_metadata",
+      "issue_5_micro_review"
+    ]
+  }
+}
