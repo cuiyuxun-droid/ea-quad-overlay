@@ -207,6 +207,23 @@ def test_dataset_rejects_l4_status_that_disagrees_with_micro_review(
         validate_dataset(rows, labels_dir, micro_reviews_dir)
 
 
+def test_dataset_rejects_micro_review_identity_mismatch(tmp_path: Path) -> None:
+    index_path, labels_dir, micro_reviews_dir = write_complete_temporary_dataset(
+        tmp_path
+    )
+    review_path = micro_reviews_dir / "EAQ000001_seg001_micro_review.json"
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    review["ea_id"] = "EAQ999999"
+    review["segment_id"] = "EAQ999999_seg001"
+    review_path.write_text(json.dumps(review), encoding="utf-8")
+
+    with index_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+
+    with pytest.raises(L4ValidationError, match="ea_id must be EAQ000001"):
+        validate_dataset(rows, labels_dir, micro_reviews_dir)
+
+
 def test_repository_m1_labels_are_complete_and_summarizable() -> None:
     with (ROOT / "source_index" / "m1_sample_20.csv").open(
         newline="",

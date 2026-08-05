@@ -407,6 +407,15 @@ def validate_dataset(
                     raise L4ValidationError(
                         f"{review_filename}: micro review must be an object"
                     )
+                expected_segment_id = f"{row['ea_id']}_seg001"
+                if review.get("ea_id") != row["ea_id"]:
+                    raise L4ValidationError(
+                        f"{review_filename}: ea_id must be {row['ea_id']}"
+                    )
+                if review.get("segment_id") != expected_segment_id:
+                    raise L4ValidationError(
+                        f"{review_filename}: segment_id must be {expected_segment_id}"
+                    )
                 review_status = review.get("review_status")
                 if review_status not in MICRO_REVIEW_STATUSES[1:]:
                     raise L4ValidationError(
