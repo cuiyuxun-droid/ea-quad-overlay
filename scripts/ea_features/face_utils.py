@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
-
 
 _CASCADE: cv2.CascadeClassifier | None = None
 
@@ -42,15 +43,82 @@ def get_face_cascade() -> cv2.CascadeClassifier:
     return _CASCADE
 
 
-def crop_largest_face(frame_bgr: np.ndarray) -> np.ndarray | None:
+def detect_largest_face(frame_bgr: np.ndarray) -> tuple[int, int, int, int] | None:
     gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
     faces = get_face_cascade().detectMultiScale(
         gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40)
     )
     if len(faces) == 0:
         return None
-    x, y, w, h = max(faces, key=lambda box: box[2] * box[3])
+    x, y, w, h = max(faces, key=lambda box: int(box[2]) * int(box[3]))
+    return int(x), int(y), int(w), int(h)
+
+
+def crop_largest_face(frame_bgr: np.ndarray) -> np.ndarray | None:
+    face = detect_largest_face(frame_bgr)
+    if face is None:
+        return None
+    x, y, w, h = face
     return frame_bgr[y : y + h, x : x + w]
+
+
+@dataclass(frozen=True)
+class FaceQuality:
+    frames_sampled: int
+    frames_with_face: int
+    face_detect_rate: float
+    mean_face_ratio: float
+    usable_for_micro: bool
+    filter_reason: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def assess_face_quality(
+    video_path: Path | None,
+    *,
+    max_frames: int = 12,
+    min_detect_rate: float = 0.5,
+    min_face_ratio: float = 0.01,
+) -> FaceQuality:
+    """Measure face visibility before expensive micro extraction.
+
+    ``mean_face_ratio`` is the detected face bounding-box area divided by the
+    frame area. A sample must satisfy both configured thresholds.
+    """
+    if video_path is None or not Path(video_path).is_file():
+        return FaceQuality(0, 0, 0.0, 0.0, False, "missing_video")
+
+    frames = read_frames_sequential(Path(video_path), max_frames=max_frames)
+    if not frames:
+        return FaceQuality(0, 0, 0.0, 0.0, False, "no_frames")
+
+    ratios: list[float] = []
+    for frame in frames:
+        face = detect_largest_face(frame)
+        if face is None:
+            continue
+        _, _, width, height = face
+        frame_height, frame_width = frame.shape[:2]
+        ratios.append((width * height) / max(frame_width * frame_height, 1))
+
+    detect_rate = len(ratios) / len(frames)
+    mean_ratio = float(np.mean(ratios)) if ratios else 0.0
+    reasons = []
+    if detect_rate < min_detect_rate:
+        reasons.append("low_face_detect_rate")
+    if mean_ratio < min_face_ratio:
+        reasons.append("small_face")
+    usable = not reasons
+    return FaceQuality(
+        frames_sampled=len(frames),
+        frames_with_face=len(ratios),
+        face_detect_rate=round(detect_rate, 6),
+        mean_face_ratio=round(mean_ratio, 6),
+        usable_for_micro=usable,
+        filter_reason="ok" if usable else ";".join(reasons),
+    )
 
 
 def read_frames_sequential(video_path: Path, max_frames: int) -> list[np.ndarray]:

@@ -36,3 +36,35 @@ scripts/
 6. **Naming** — Script names are `snake_case.py`. A script that processes a
    single dataset is named `{action}_{dataset}.py` (e.g. `ingest_ch_sims.py`).
    A multi-dataset script is named `{action}.py` (e.g. `ingest.py`).
+
+## Unified FeatureBank extraction
+
+`extract_features.py` reads one or more source-index CSV files, lazily loads
+the requested extractors, and writes portable feature paths into
+`manifests/feature_bank.jsonl`. It is incremental by default and records
+per-sample quality, filter, and failure details in
+`reports/feature_quality.csv`.
+
+```bash
+# Discover all source_index/*.csv files and extract all four modalities.
+python scripts/extract_features.py --device cpu
+
+# Process one dataset without forcing micro extraction.
+python scripts/extract_features.py \
+  --index source_index/iemocap_index.csv \
+  --modalities text,speech,macro \
+  --device cpu
+
+# Isolated smoke run that does not write generated data into the repository.
+python scripts/extract_features.py \
+  --index source_index/m1_sample_20.csv \
+  --output-root .work/feature-smoke \
+  --modalities text \
+  --limit 1 \
+  --device cpu
+```
+
+Use `--overwrite` to recompute existing outputs and `--fail-on-error` when a
+non-zero exit code is required if any sample fails. Micro extraction is
+skipped when `usable_for_micro=false` or when the configurable face detection
+rate / face-size thresholds are not met.

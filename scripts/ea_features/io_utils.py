@@ -21,9 +21,15 @@ def feature_stem(ea_id: str, modality: str, seg: int = 1) -> str:
     return f"{segment_id(ea_id, seg)}_{modality}"
 
 
-def feature_paths(ea_id: str, modality: str, seg: int = 1) -> tuple[Path, Path]:
+def feature_paths(
+    ea_id: str,
+    modality: str,
+    seg: int = 1,
+    *,
+    feature_root: Path | None = None,
+) -> tuple[Path, Path]:
     stem = feature_stem(ea_id, modality, seg)
-    base = FEATURE_ROOT / modality
+    base = (feature_root or FEATURE_ROOT) / modality
     return base / f"{stem}.npy", base / f"{stem}.json"
 
 
@@ -33,21 +39,39 @@ def save_feature(
     vector: np.ndarray,
     meta: dict[str, Any],
     seg: int = 1,
+    *,
+    feature_root: Path | None = None,
+    path_root: Path | None = None,
 ) -> tuple[Path, Path]:
-    npy_path, meta_path = feature_paths(ea_id, modality, seg)
+    npy_path, meta_path = feature_paths(
+        ea_id,
+        modality,
+        seg,
+        feature_root=feature_root,
+    )
     npy_path.parent.mkdir(parents=True, exist_ok=True)
     arr = np.asarray(vector, dtype=np.float32)
-    np.save(npy_path, arr)
+    npy_tmp = npy_path.with_suffix(".npy.tmp")
+    with npy_tmp.open("wb") as handle:
+        np.save(handle, arr)
+    npy_tmp.replace(npy_path)
+    relative_root = path_root or ROOT
+    try:
+        feature_path = npy_path.relative_to(relative_root).as_posix()
+    except ValueError:
+        feature_path = npy_path.as_posix()
     payload = {
         "ea_id": ea_id,
         "segment_id": segment_id(ea_id, seg),
         "modality": modality,
         "shape": list(arr.shape),
         "dtype": str(arr.dtype),
-        "feature_path": str(npy_path.relative_to(ROOT)).replace("\\", "/"),
+        "feature_path": feature_path,
         **meta,
     }
-    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    meta_tmp = meta_path.with_suffix(".json.tmp")
+    meta_tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    meta_tmp.replace(meta_path)
     return npy_path, meta_path
 
 
@@ -55,6 +79,22 @@ def load_feature(npy_path: Path) -> np.ndarray:
     return np.load(npy_path)
 
 
-def feature_exists(ea_id: str, modality: str, seg: int = 1) -> bool:
-    npy_path, _ = feature_paths(ea_id, modality, seg)
-    return npy_path.is_file() and npy_path.stat().st_size > 0
+def feature_exists(
+    ea_id: str,
+    modality: str,
+    seg: int = 1,
+    *,
+    feature_root: Path | None = None,
+) -> bool:
+    npy_path, meta_path = feature_paths(
+        ea_id,
+        modality,
+        seg,
+        feature_root=feature_root,
+    )
+    return (
+        npy_path.is_file()
+        and npy_path.stat().st_size > 0
+        and meta_path.is_file()
+        and meta_path.stat().st_size > 0
+    )

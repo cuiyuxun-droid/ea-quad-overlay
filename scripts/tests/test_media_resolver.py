@@ -9,13 +9,17 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from ea_features.media import MediaResolver, read_ch_sims_text, read_meld_utterance
+from ea_features.media import (  # noqa: E402
+    MediaResolver,
+    read_ch_sims_text,
+    read_keyed_transcript,
+    read_meld_utterance,
+)
 
 
 def _write_wav(path: Path, frames: int = 1600, sr: int = 16000) -> None:
@@ -86,6 +90,21 @@ def test_read_meld_utterance(tmp_path: Path) -> None:
     assert read_meld_utterance(csv_path, 0, 4) == "Hello there"
 
 
+def test_read_iemocap_keyed_transcript(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.txt"
+    transcript.write_text(
+        "Ses01F_impro01_F000 [006.2901-008.2357]: Excuse me.\n"
+        "Ses01F_impro01_M000 [007.5712-010.4750]: Do you have your forms?\n",
+        encoding="utf-8",
+    )
+    assert read_keyed_transcript(transcript, "Ses01F_impro01_F000") == "Excuse me."
+    resolver = MediaResolver(cache_root=tmp_path / "cache")
+    assert (
+        resolver.resolve_text(f"{transcript}#Ses01F_impro01_M000", "IEMOCAP")
+        == "Do you have your forms?"
+    )
+
+
 def test_resolve_text_pointers(tmp_path: Path) -> None:
     label = tmp_path / "label.csv"
     with label.open("w", newline="", encoding="utf-8") as handle:
@@ -104,7 +123,4 @@ def test_resolve_text_pointers(tmp_path: Path) -> None:
 
     resolver = MediaResolver(cache_root=tmp_path / "cache")
     assert resolver.resolve_text(f"{label}#video_0001/0001") == "中文文本"
-    assert (
-        resolver.resolve_text(f"{meld}#Dialogue_ID=1&Utterance_ID=2")
-        == "English text"
-    )
+    assert resolver.resolve_text(f"{meld}#Dialogue_ID=1&Utterance_ID=2") == "English text"

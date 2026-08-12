@@ -7,13 +7,10 @@ import hashlib
 import re
 import shutil
 import subprocess
-import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from urllib.parse import parse_qs
-
 
 ZIP_MEMBER_RE = re.compile(r"^(?P<zip>.+\.zip)::(?P<member>.+)$", re.IGNORECASE)
 CH_SIMS_POINTER_RE = re.compile(r"^(.+#)?(?P<key>video_\d+/\d+)$")
@@ -21,6 +18,7 @@ MELD_POINTER_RE = re.compile(
     r"^(?P<csv>.+\.csv)#Dialogue_ID=(?P<dialog>\d+)&Utterance_ID=(?P<utt>\d+)$",
     re.IGNORECASE,
 )
+IEMOCAP_LINE_RE = re.compile(r"^(?P<utterance>\S+)\s+\[[^]]+\]:\s*(?P<text>.*)$")
 
 
 @dataclass
@@ -48,7 +46,12 @@ class MediaResolver:
         sample_cache = self.cache_root / ea_id
         sample_cache.mkdir(parents=True, exist_ok=True)
 
-        video_path = self.resolve_video(row.get("video_path", ""), sample_cache)
+        video_path = self.resolve_video(
+            row.get("video_path", ""),
+            sample_cache,
+            start=float(row.get("start") or 0.0),
+            end=float(row.get("end") or 0.0),
+        )
         audio_path = self.resolve_audio(
             row.get("audio_path", ""),
             video_path,
@@ -68,10 +71,21 @@ class MediaResolver:
             cache_dir=sample_cache,
         )
 
-    def resolve_video(self, video_spec: str, sample_cache: Path) -> Path | None:
+    def resolve_video(
+        self,
+        video_spec: str,
+        sample_cache: Path,
+        start: float = 0.0,
+        end: float = 0.0,
+    ) -> Path | None:
         if not video_spec:
             return None
         local = self.materialize_path(video_spec, sample_cache, preferred_name="video.mp4")
+        if local is not None and end > start and start > 0:
+            clipped = sample_cache / "video_clip.mp4"
+            if not clipped.is_file() or clipped.stat().st_size <= 0:
+                extract_video_clip_with_ffmpeg(local, clipped, start=start, end=end)
+            return clipped
         return local
 
     def resolve_audio(
@@ -89,7 +103,9 @@ class MediaResolver:
         # Prefer extracting wav from video when audio_spec points at the same video/zip member.
         source_for_ffmpeg: Path | None = None
         if audio_spec:
-            materialized = self.materialize_path(audio_spec, sample_cache, preferred_name="audio_src")
+            materialized = self.materialize_path(
+                audio_spec, sample_cache, preferred_name="audio_src"
+            )
             if materialized is not None:
                 if materialized.suffix.lower() in {".wav", ".flac", ".mp3", ".ogg"}:
                     shutil.copy2(materialized, out_wav)
@@ -159,6 +175,8 @@ class MediaResolver:
             csv_path_str, pointer = text_spec.split("#", 1)
             csv_path = Path(csv_path_str)
             pointer = pointer.strip()
+            if csv_path.suffix.lower() == ".txt" and csv_path.is_file():
+                return read_keyed_transcript(csv_path, pointer)
             if csv_path.suffix.lower() == ".csv" and csv_path.is_file():
                 # CH-SIMS style: label.csv#video_0001/0001
                 if re.fullmatch(r"video_\d+/\d+", pointer):
@@ -179,12 +197,7 @@ class MediaResolver:
         return text_spec
 
 
-def extract_wav_with_ffmpeg(
-    source: Path,
-    out_wav: Path,
-    start: float = 0.0,
-    end: float = 0.0,
-) -> None:
+def _ffmpeg_binary() -> str:
     ffmpeg_bin = "ffmpeg"
     try:
         import imageio_ffmpeg
@@ -192,8 +205,54 @@ def extract_wav_with_ffmpeg(
         ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:  # noqa: BLE001
         pass
+    return ffmpeg_bin
 
-    cmd = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error"]
+
+def extract_video_clip_with_ffmpeg(
+    source: Path,
+    out_video: Path,
+    *,
+    start: float,
+    end: float,
+) -> None:
+    cmd = [
+        _ffmpeg_binary(),
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-ss",
+        f"{start:.3f}",
+        "-i",
+        str(source),
+        "-t",
+        f"{max(end - start, 0.05):.3f}",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        str(out_video),
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "ffmpeg not found. Install system ffmpeg or `pip install imageio-ffmpeg`."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"ffmpeg failed to clip {source}") from exc
+
+
+def extract_wav_with_ffmpeg(
+    source: Path,
+    out_wav: Path,
+    start: float = 0.0,
+    end: float = 0.0,
+) -> None:
+    cmd = [_ffmpeg_binary(), "-y", "-hide_banner", "-loglevel", "error"]
     if start > 0:
         cmd.extend(["-ss", f"{start:.3f}"])
     cmd.extend(["-i", str(source)])
@@ -240,8 +299,7 @@ def read_ch_sims_text(label_csv: Path, key: str) -> str:
         handle.seek(0)
         first_line = sample.splitlines()[0] if sample else ""
         has_header = any(
-            token in first_line.lower()
-            for token in ("text", "video", "id", "sentiment", "clip")
+            token in first_line.lower() for token in ("text", "video", "id", "sentiment", "clip")
         ) and not first_line.lower().startswith("video_")
 
         if has_header:
@@ -305,8 +363,19 @@ def read_meld_utterance(csv_path: Path, dialogue_id: int, utterance_id: int) -> 
                 text = row.get("Utterance") or row.get("utterance") or row.get("text") or ""
                 return str(text).strip()
     raise KeyError(
-        f"MELD utterance not found Dialogue_ID={dialogue_id} Utterance_ID={utterance_id} in {csv_path}"
+        "MELD utterance not found "
+        f"Dialogue_ID={dialogue_id} Utterance_ID={utterance_id} in {csv_path}"
     )
+
+
+def read_keyed_transcript(path: Path, utterance_id: str) -> str:
+    """Read an IEMOCAP-style ``utterance [start-end]: text`` transcript line."""
+    with _open_csv_text(path) as handle:
+        for raw in handle:
+            match = IEMOCAP_LINE_RE.match(raw.strip())
+            if match and match.group("utterance") == utterance_id:
+                return match.group("text").strip()
+    raise KeyError(f"transcript utterance {utterance_id!r} not found in {path}")
 
 
 def read_source_index(path: Path) -> list[dict[str, str]]:
