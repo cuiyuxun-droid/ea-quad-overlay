@@ -103,3 +103,7 @@ Each EA sample must have one row in `source_index/source_index_template.csv`
 or a derived source index file using the same schema. The `source_id` field
 must preserve the original dataset identifier so the sample can be traced back
 to CH-SIMS, MELD, IEMOCAP, MOSEI, or MUStARD.
+
+For global identity, index roles, path pointer formats, and cross-index merge
+rules, see [`source_index_contract.md`](source_index_contract.md). PR authors
+should also use [`pr_acceptance_checklist.md`](pr_acceptance_checklist.md).
