@@ -25,6 +25,12 @@ GitHub issue: https://github.com/cuiyuxun-droid/ea-quad-overlay/issues/10
 - Added schema-ready output files for both requested indexes.
 - Validation now requires rows marked `usable_for_l4=true` to have non-empty
   video, audio, and text paths plus a mapped weak label.
+- MOSEI rows use segmented media paths and transcript pointers of the form
+  `Transcript/Segmented/Combined/<video_id>.txt#clip=<clip_id>`.
+- Allocation map source: `docs/source_index_contract.md`.
+- IEMOCAP new-row range: `EAQ300000` - `EAQ399999`.
+- MOSEI new-row range: `EAQ400000` - `EAQ499999`.
+- MOSI new-row range: `EAQ500000` - `EAQ599999`.
 
 The generated index schema starts with the shared source index fields and appends:
 
@@ -62,7 +68,8 @@ Once server access is available, run on a machine with the datasets mounted:
 python scripts/build_iemocap_mosei_index.py \
   --iemocap-root /root/autodl-tmp/data/datasets/alipan/iemocap/IEMOCAP_full_release \
   --mosei-root /root/autodl-tmp/data/datasets/baidupcs/CMU-MOSEI \
-  --mosi-root /root/autodl-tmp/data/datasets/mosi
+  --mosi-root /root/autodl-tmp/data/datasets/mosi \
+  --id-registry source_index/iemocap_index.csv source_index/mosei_index.csv
 ```
 
 If the actual server directory names differ, pass the discovered roots with the same arguments.
@@ -78,7 +85,32 @@ Strict validation run on the dataset server:
 Result:
 
 ```text
-OK: validated 7173 rows (IEMOCAP=5766, MOSEI=1407, MOSI=0)
+OK: validated 14672 rows (IEMOCAP=5766, MOSEI=8906, MOSI=0)
 ```
 
 The validated CSV outputs were copied back into this worktree.
+
+## Allocation Summary
+
+```text
+dataset: IEMOCAP
+first_ea_id: EAQ300000
+last_ea_id: EAQ305765
+seed_rows_inherited: 0
+new_rows_allocated: 5766
+
+dataset: MOSEI
+first_ea_id: EAQ400000
+last_ea_id: EAQ408905
+seed_rows_inherited: 0
+new_rows_allocated: 8906
+```
+
+## Quality Heuristics
+
+- `face_quality=high` when the referenced video path exists; otherwise `low`.
+- `audio_quality=high` when the referenced audio path exists; otherwise `low`.
+- `text_quality=high` when the transcript pointer resolves; otherwise `low`.
+- `usable_for_micro=true` requires video, audio, and text pointers to resolve.
+- `usable_for_l4=true` additionally requires a positive/neutral/negative weak
+  label mapping from the original IEMOCAP emotion or aggregated MOSEI sentiment.

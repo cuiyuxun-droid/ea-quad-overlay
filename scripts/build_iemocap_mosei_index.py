@@ -11,7 +11,8 @@ from __future__ import annotations
 import argparse
 import csv
 import re
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
@@ -54,6 +55,11 @@ IEMOCAP_EVAL_RE = re.compile(
 IEMOCAP_TRANSCRIPT_RE = re.compile(r"^(?P<utt>\S+)\s+\[[^\]]+\]:\s*(?P<text>.*)$")
 MEDIA_EXTENSIONS = {".avi", ".mp4", ".mov", ".mkv", ".wav", ".mp3", ".flac", ".m4a"}
 TEXT_EXTENSIONS = {".txt", ".csv", ".tsv"}
+DATASET_ID_RANGES = {
+    "IEMOCAP": (300000, 399999),
+    "MOSEI": (400000, 499999),
+    "MOSI": (500000, 599999),
+}
 
 EMOTION_WEAK_LABELS = {
     "ang": "negative",
@@ -246,7 +252,7 @@ def first_existing(row: dict[str, str], names: Iterable[str]) -> str:
 
 
 def sniff_csvs(root: Path) -> list[Path]:
-    wanted = ("label", "sentiment", "annotation", "metadata", "segments")
+    wanted = ("label", "sentiment", "annotation", "metadata", "segments", "batch")
     return [
         path
         for path in sorted(root.rglob("*.csv"))
@@ -278,11 +284,59 @@ def find_media(media: dict[str, list[Path]], keys: Iterable[str], prefer_audio: 
     return None
 
 
-def build_mosei_like_rows(root: Path, dataset_name: str) -> list[SourceRow]:
-    if not root.is_dir():
-        return []
-    media = index_media_files(root)
-    rows: list[SourceRow] = []
+@dataclass
+class MoseiAnnotation:
+    dataset_name: str
+    video_id: str
+    clip_id: str
+    source_key: str
+    sentiments: list[float] = field(default_factory=list)
+    emotions: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    label_sources: set[str] = field(default_factory=set)
+
+
+def parse_number(value: str) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def format_number(value: float) -> str:
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def read_mosei_segments(root: Path) -> dict[str, dict[str, tuple[Path, str, str]]]:
+    transcript_root = root / "extracted" / "Raw" / "Transcript" / "Segmented" / "Combined"
+    segments: dict[str, dict[str, tuple[Path, str, str]]] = {}
+    if not transcript_root.is_dir():
+        return segments
+    for path in sorted(transcript_root.glob("*.txt")):
+        video_id = path.stem
+        clips: dict[str, tuple[Path, str, str]] = {}
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                parts = line.rstrip("\n").split("___", 4)
+                if len(parts) < 5:
+                    continue
+                _, clip_id, start, end, text = parts
+                if text.strip():
+                    clips[clip_id] = (path, start, end)
+        if clips:
+            segments[video_id] = clips
+    return segments
+
+
+def mosei_segment_video(root: Path, video_id: str, clip_id: str) -> Path:
+    return root / "extracted" / "Raw" / "Videos" / "Segmented" / "Combined" / f"{video_id}_{clip_id}.mp4"
+
+
+def mosei_audio(root: Path, video_id: str) -> Path:
+    return root / "extracted" / "Raw" / "Audio" / "Full" / "WAV_16000" / f"{video_id}.wav"
+
+
+def collect_mosei_annotations(root: Path, dataset_name: str) -> dict[str, MoseiAnnotation]:
+    annotations: dict[str, MoseiAnnotation] = {}
     for csv_path in sniff_csvs(root):
         with csv_path.open(newline="", encoding="utf-8", errors="replace") as handle:
             reader = csv.DictReader(handle)
@@ -291,98 +345,105 @@ def build_mosei_like_rows(root: Path, dataset_name: str) -> list[SourceRow]:
             normalized_names = {name: normalize_header(name) for name in reader.fieldnames}
             for raw_row in reader:
                 row = {normalized_names[name]: (value or "") for name, value in raw_row.items()}
-                clip_id = first_existing(
-                    row,
-                    (
-                        "input_clip",
-                        "clip_id",
-                        "segment_id",
-                        "video_id",
-                        "id",
-                        "file",
-                        "filename",
-                        "utterance_id",
-                    ),
-                )
-                video_id = first_existing(
-                    row,
-                    ("input_video_id", "video_id", "movie", "show", "file", "filename"),
-                )
-                if not clip_id and not video_id:
+                clip_id = first_existing(row, ("input_clip", "clip_id", "segment_id"))
+                video_id = first_existing(row, ("input_video_id", "video_id"))
+                if not video_id or not clip_id:
                     continue
                 sentiment = first_existing(
                     row,
                     (
-                        "sentiment",
                         "answer_sentiment",
+                        "sentiment",
                         "sentiment_label",
-                        "label",
-                        "annotation",
                         "mosi_sentiment",
                         "mosei_sentiment",
                     ),
                 )
-                emotion = first_existing(
-                    row,
-                    (
-                        "emotion",
-                        "emotion_label",
-                        "raw_emotion",
-                        "answer_anger",
-                        "answer_disgust",
-                        "answer_fear",
-                        "answer_happiness",
-                        "answer_sadness",
-                        "answer_surprise",
+                emotion_values = {
+                    "anger": first_existing(row, ("answer_anger", "anger")),
+                    "disgust": first_existing(row, ("answer_disgust", "disgust")),
+                    "fear": first_existing(row, ("answer_fear", "fear")),
+                    "happiness": first_existing(row, ("answer_happiness", "happiness")),
+                    "sadness": first_existing(row, ("answer_sadness", "sadness")),
+                    "surprise": first_existing(row, ("answer_surprise", "surprise")),
+                }
+                sentiment_number = parse_number(sentiment)
+                if sentiment_number is None and not any(emotion_values.values()):
+                    continue
+                source_key = f"{video_id}/{clip_id}"
+                annotation = annotations.setdefault(
+                    source_key,
+                    MoseiAnnotation(
+                        dataset_name=dataset_name,
+                        video_id=video_id,
+                        clip_id=clip_id,
+                        source_key=source_key,
                     ),
                 )
-                if not sentiment and not emotion:
-                    continue
-                start = first_existing(row, ("start", "start_time", "begin", "timestamp_start"))
-                end = first_existing(row, ("end", "end_time", "finish", "timestamp_end"))
-                source_key = (
-                    f"{video_id}/{clip_id}" if video_id and clip_id else clip_id or video_id
+                if sentiment_number is not None:
+                    annotation.sentiments.append(sentiment_number)
+                for emotion, value in emotion_values.items():
+                    number = parse_number(value)
+                    if number is not None:
+                        annotation.emotions[emotion].append(number)
+                annotation.label_sources.add(
+                    f"{csv_path}#Input.VIDEO_ID={video_id}&Input.CLIP={clip_id}"
                 )
-                media_keys = [
-                    source_key,
-                    clip_id,
-                    video_id,
-                    f"{video_id}_{clip_id}",
-                    f"{clip_id}_{video_id}",
-                    f"{video_id}[{clip_id}]",
-                ]
-                video_path = find_media(media, media_keys, prefer_audio=False)
-                audio_path = find_media(media, media_keys, prefer_audio=True)
-                has_video = video_path is not None and video_path.is_file()
-                has_audio = audio_path is not None and audio_path.is_file()
-                text_value = first_existing(row, ("text", "transcript", "utterance", "sentence"))
-                text_path = f"{csv_path}#{clip_id or video_id}" if text_value or csv_path.is_file() else ""
-                weak_label = weak_from_sentiment(sentiment) or EMOTION_WEAK_LABELS.get(
-                    emotion.lower(), ""
-                )
-                usable_l4 = has_video and has_audio and bool(text_path) and bool(weak_label)
-                rows.append(
-                    SourceRow(
-                        source_dataset=dataset_name,
-                        source_split=first_existing(row, ("split", "partition", "mode")) or "unknown",
-                        source_id=f"{dataset_name}/{source_key}",
-                        video_path=str(video_path) if video_path else "",
-                        audio_path=str(audio_path) if audio_path else "",
-                        text_path=text_path,
-                        start=f"{float(start):.2f}" if start else "0.00",
-                        end=f"{float(end):.2f}" if end else "0.00",
-                        language="en",
-                        face_quality=quality(has_video),
-                        audio_quality=quality(has_audio),
-                        text_quality=quality(bool(text_path)),
-                        usable_for_micro=truth(has_video and has_audio and bool(text_path)),
-                        usable_for_l4=truth(usable_l4),
-                        raw_emotion=emotion,
-                        raw_sentiment=sentiment,
-                        weak_label_hint=weak_label,
-                        label_source=f"{csv_path}#{source_key}",
-                    )
-                )
+    return annotations
+
+
+def summarize_emotions(annotation: MoseiAnnotation) -> str:
+    parts = []
+    for emotion in sorted(annotation.emotions):
+        values = annotation.emotions[emotion]
+        if values:
+            parts.append(f"{emotion}={format_number(sum(values) / len(values))}")
+    return ";".join(parts)
+
+
+def build_mosei_like_rows(root: Path, dataset_name: str) -> list[SourceRow]:
+    if not root.is_dir():
+        return []
+    rows: list[SourceRow] = []
+    segments = read_mosei_segments(root)
+    annotations = collect_mosei_annotations(root, dataset_name)
+    for annotation in annotations.values():
+        segment = segments.get(annotation.video_id, {}).get(annotation.clip_id)
+        transcript_path, start, end = segment if segment else (None, "", "")
+        video_path = mosei_segment_video(root, annotation.video_id, annotation.clip_id)
+        audio_path = mosei_audio(root, annotation.video_id)
+        has_video = video_path.is_file()
+        has_audio = audio_path.is_file()
+        has_text = transcript_path is not None and transcript_path.is_file()
+        sentiment = ""
+        if annotation.sentiments:
+            sentiment = format_number(sum(annotation.sentiments) / len(annotation.sentiments))
+        weak_label = weak_from_sentiment(sentiment)
+        usable_l4 = has_video and has_audio and has_text and bool(weak_label)
+        rows.append(
+            SourceRow(
+                source_dataset=dataset_name,
+                source_split="unknown",
+                source_id=f"{dataset_name}/{annotation.source_key}",
+                video_path=str(video_path) if has_video else "",
+                audio_path=str(audio_path) if has_audio else "",
+                text_path=(
+                    f"{transcript_path}#clip={annotation.clip_id}" if transcript_path else ""
+                ),
+                start=f"{float(start):.2f}" if start else "",
+                end=f"{float(end):.2f}" if end else "",
+                language="en",
+                face_quality=quality(has_video),
+                audio_quality=quality(has_audio),
+                text_quality=quality(has_text),
+                usable_for_micro=truth(has_video and has_audio and has_text),
+                usable_for_l4=truth(usable_l4),
+                raw_emotion=summarize_emotions(annotation),
+                raw_sentiment=sentiment,
+                weak_label_hint=weak_label,
+                label_source=";".join(sorted(annotation.label_sources)),
+            )
+        )
     return dedupe_rows(rows)
 
 
@@ -398,8 +459,51 @@ def dedupe_rows(rows: list[SourceRow]) -> list[SourceRow]:
     return unique
 
 
-def assign_ids(rows: list[SourceRow], start_id: int) -> list[dict[str, str]]:
-    return [row.with_ea_id(f"EAQ{index:06d}") for index, row in enumerate(rows, start=start_id)]
+def load_existing_ids(paths: Iterable[Path]) -> dict[tuple[str, str], str]:
+    assignments: dict[tuple[str, str], str] = {}
+    for path in paths:
+        if not path.is_file():
+            continue
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                dataset = row.get("source_dataset", "")
+                source_id = row.get("source_id", "")
+                ea_id = row.get("ea_id", "")
+                if dataset and source_id and ea_id:
+                    assignments[(dataset, source_id)] = ea_id
+    return assignments
+
+
+def id_number(ea_id: str) -> int | None:
+    match = re.fullmatch(r"EAQ(\d{6})", ea_id)
+    return int(match.group(1)) if match else None
+
+
+def assign_dataset_ids(
+    rows: list[SourceRow],
+    dataset_name: str,
+    existing_ids: dict[tuple[str, str], str],
+) -> list[dict[str, str]]:
+    start_id, end_id = DATASET_ID_RANGES[dataset_name]
+    next_id = start_id
+    output: list[dict[str, str]] = []
+    used: set[str] = set()
+    for row in rows:
+        existing = existing_ids.get((row.source_dataset, row.source_id), "")
+        number = id_number(existing)
+        if number is not None and start_id <= number <= end_id and existing not in used:
+            ea_id = existing
+        else:
+            while f"EAQ{next_id:06d}" in used:
+                next_id += 1
+            if next_id > end_id:
+                raise SystemExit(f"{dataset_name} ID range exhausted")
+            ea_id = f"EAQ{next_id:06d}"
+            next_id += 1
+        used.add(ea_id)
+        output.append(row.with_ea_id(ea_id))
+    return output
 
 
 def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
@@ -416,7 +520,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mosei-root", type=Path, default=Path("/root/autodl-tmp/data/datasets/mosei"))
     parser.add_argument("--mosi-root", type=Path, default=Path("/root/autodl-tmp/data/datasets/mosi"))
     parser.add_argument("--output-dir", type=Path, default=SOURCE_INDEX)
-    parser.add_argument("--start-id", type=int, default=21)
+    parser.add_argument(
+        "--id-registry",
+        type=Path,
+        nargs="*",
+        default=[],
+        help="Existing source index CSV files used to preserve prior assignments.",
+    )
     return parser.parse_args()
 
 
@@ -427,8 +537,16 @@ def main() -> None:
     mosei_rows = build_mosei_like_rows(args.mosei_root, "MOSEI")
     mosi_rows = build_mosei_like_rows(args.mosi_root, "MOSI")
 
-    iemocap_index = assign_ids(iemocap_rows, args.start_id)
-    mosei_index = assign_ids(mosei_rows + mosi_rows, args.start_id + len(iemocap_rows))
+    registry_paths = args.id_registry or [
+        args.output_dir / "iemocap_index.csv",
+        args.output_dir / "mosei_index.csv",
+    ]
+    existing_ids = load_existing_ids(registry_paths)
+    iemocap_index = assign_dataset_ids(iemocap_rows, "IEMOCAP", existing_ids)
+    mosei_index = (
+        assign_dataset_ids(mosei_rows, "MOSEI", existing_ids)
+        + assign_dataset_ids(mosi_rows, "MOSI", existing_ids)
+    )
 
     write_csv(args.output_dir / "iemocap_index.csv", iemocap_index)
     write_csv(args.output_dir / "mosei_index.csv", mosei_index)
