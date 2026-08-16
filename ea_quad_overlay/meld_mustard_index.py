@@ -35,16 +35,20 @@ TEMPLATE_COLUMNS = (
 )
 EXTRA_COLUMNS = ("is_sarcasm_candidate", "candidate_reason")
 INDEX_COLUMNS = TEMPLATE_COLUMNS + EXTRA_COLUMNS
+ALLOCATION_COLUMNS = ("source_dataset", "source_id", "ea_id")
 
 MELD_SPLITS = ("train", "dev", "test")
+# Server layout under /root/autodl-tmp/data/datasets/meld/extracted/MELD.Raw/
 MELD_VIDEO_DIRS = {
     "train": "extracted/MELD.Raw/train_splits",
-    "dev": "extracted/MELD.Raw/dev_splits",
+    "dev": "extracted/MELD.Raw/dev_splits_complete",
     "test": "extracted/MELD.Raw/output_repeated_splits_test",
 }
 
 MELD_EA_ID_START = 100_000
 MUSTARD_EA_ID_START = 200_000
+# Historical M1 seed IDs must never be minted for new dataset rows.
+RESERVED_SEED_EA_IDS = {f"EAQ{i:06d}" for i in range(1, 21)}
 
 EMOTION_POLARITY = {
     "joy": "pos",
@@ -168,11 +172,9 @@ def media_exists(path: str, check_media: bool) -> bool | None:
         return None
     if not path:
         return False
-    # Only local/Windows/absolute paths that exist on this machine can be verified.
     candidate = Path(path)
     if candidate.is_file():
         return True
-    # POSIX server paths are not checkable on Windows unless mounted.
     if path.startswith("/root/") or path.startswith("/data/"):
         return None
     return False
@@ -180,22 +182,27 @@ def media_exists(path: str, check_media: bool) -> bool | None:
 
 def resolve_mustard_video_path(utterance_id: str, mustard_root: str) -> str:
     root = mustard_root.rstrip("/\\").replace("\\", "/")
-    # Canonical guess used in indexes; local probes may resolve alternate layouts.
-    return f"{root}/utterances_final/{utterance_id}.mp4"
+    # AutoDL layout confirmed by Issue #9 review.
+    return f"{root}/raw/clips/utterances_final/{utterance_id}.mp4"
 
 
 def probe_mustard_video_path(utterance_id: str, mustard_root: Path) -> Path | None:
     relatives = (
+        mustard_root / "raw" / "clips" / "utterances_final" / f"{utterance_id}.mp4",
+        mustard_root / "raw" / "clips" / "utterances_final" / f"{utterance_id}_c.mp4",
         mustard_root / "utterances_final" / f"{utterance_id}.mp4",
-        mustard_root / "utterances_final" / f"{utterance_id}_c.mp4",
         mustard_root / "videos" / f"{utterance_id}.mp4",
-        mustard_root / "extracted" / "utterances_final" / f"{utterance_id}.mp4",
         mustard_root / f"{utterance_id}.mp4",
     )
     for path in relatives:
         if path.is_file():
             return path
     return None
+
+
+def mustard_json_server_path(mustard_root: str) -> str:
+    root = mustard_root.rstrip("/\\").replace("\\", "/")
+    return f"{root}/data/sarcasm_data.json"
 
 
 def quality_flags(
@@ -205,6 +212,12 @@ def quality_flags(
     duration: float | None,
     sarcasm_candidate: bool,
 ) -> tuple[str, str, str, str, str]:
+    """Return face/audio/text quality and usable_for_micro / usable_for_l4.
+
+    When media was not verified (``video_present is None``), face/audio are
+    ``missing`` and ``usable_for_micro`` is always false per
+    ``docs/source_index_contract.md``.
+    """
     if text.strip():
         text_quality = "high"
     else:
@@ -213,20 +226,18 @@ def quality_flags(
     if video_present is True:
         face_quality = "medium"
         audio_quality = "medium"
-    elif video_present is False:
+    else:
+        # False (confirmed missing) or None (unchecked): not resolvable yet.
         face_quality = "missing"
         audio_quality = "missing"
-    else:
-        # Media not checked (typical for server-path indexes generated locally).
-        face_quality = "medium" if text_quality != "missing" else "low"
-        audio_quality = "medium" if text_quality != "missing" else "low"
 
-    if video_present is False:
+    if video_present is not True:
         usable_micro = False
     elif duration is None:
-        usable_micro = video_present is not False and face_quality != "missing"
+        # Atomic clip with confirmed media; duration optional.
+        usable_micro = True
     else:
-        usable_micro = face_quality != "missing" and 0.8 <= duration <= 30.0
+        usable_micro = 0.8 <= duration <= 30.0
 
     usable_l4 = text_quality != "missing" and (
         sarcasm_candidate or face_quality != "missing"
@@ -327,6 +338,144 @@ def mustard_text_path(json_path: str, utterance_id: str) -> str:
     return f"{json_path.replace(chr(92), '/')}#utterance_id={utterance_id}"
 
 
+def read_m1_meld_reservations(m1_index_path: Path) -> dict[str, str]:
+    """Map MELD source_id -> historical M1 ea_id."""
+    if not m1_index_path.is_file():
+        return {}
+    reserved: dict[str, str] = {}
+    with m1_index_path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("source_dataset") != "MELD":
+                continue
+            source_id = (row.get("source_id") or "").strip()
+            ea_id = (row.get("ea_id") or "").strip()
+            if source_id and ea_id:
+                reserved[source_id] = ea_id
+    return reserved
+
+
+def read_m1_meld_seed_metadata(m1_index_path: Path) -> dict[str, dict[str, str]]:
+    """Reuse measured M1 durations and accepted quality flags for seed rows."""
+    if not m1_index_path.is_file():
+        return {}
+    metadata: dict[str, dict[str, str]] = {}
+    with m1_index_path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("source_dataset") != "MELD":
+                continue
+            source_id = (row.get("source_id") or "").strip()
+            if not source_id:
+                continue
+            metadata[source_id] = {
+                "start": row.get("start") or "0.00",
+                "end": row.get("end") or "",
+                "face_quality": row.get("face_quality") or "high",
+                "audio_quality": row.get("audio_quality") or "high",
+                "text_quality": row.get("text_quality") or "high",
+                "usable_for_micro": row.get("usable_for_micro") or "true",
+                "usable_for_l4": row.get("usable_for_l4") or "true",
+            }
+    return metadata
+
+
+def read_allocation_map(path: Path | None) -> dict[tuple[str, str], str]:
+    """Load persisted (source_dataset, source_id) -> ea_id assignments."""
+    if path is None or not path.is_file():
+        return {}
+    mapping: dict[tuple[str, str], str] = {}
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            dataset = (row.get("source_dataset") or "").strip()
+            source_id = (row.get("source_id") or "").strip()
+            ea_id = (row.get("ea_id") or "").strip()
+            if dataset and source_id and ea_id:
+                mapping[(dataset, source_id)] = ea_id
+    return mapping
+
+
+def read_index_allocation(path: Path | None, dataset: str) -> dict[tuple[str, str], str]:
+    """Recover allocation from an existing dataset index CSV."""
+    if path is None or not path.is_file():
+        return {}
+    mapping: dict[tuple[str, str], str] = {}
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("source_dataset") != dataset:
+                continue
+            source_id = (row.get("source_id") or "").strip()
+            ea_id = (row.get("ea_id") or "").strip()
+            if source_id and ea_id:
+                mapping[(dataset, source_id)] = ea_id
+    return mapping
+
+
+def write_allocation_map(path: Path, mapping: Mapping[tuple[str, str], str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"source_dataset": dataset, "source_id": source_id, "ea_id": ea_id}
+        for (dataset, source_id), ea_id in sorted(
+            mapping.items(), key=lambda item: (item[0][0], item[1])
+        )
+    ]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(ALLOCATION_COLUMNS))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _next_free_id(start: int, used: set[str], end_exclusive: int) -> int:
+    current = start
+    while current < end_exclusive:
+        candidate = f"EAQ{current:06d}"
+        if candidate not in used and candidate not in RESERVED_SEED_EA_IDS:
+            return current
+        current += 1
+    raise DialogueIndexError(f"exhausted EA ID range starting at {start}")
+
+
+def assign_ea_ids(
+    *,
+    dataset: str,
+    source_ids: Sequence[str],
+    range_start: int,
+    range_end_exclusive: int,
+    seed_reservations: Mapping[str, str],
+    existing_map: Mapping[tuple[str, str], str],
+) -> dict[str, str]:
+    """Assign stable ea_id values for one dataset.
+
+    Priority: M1 seed reservation > persisted allocation map > new IDs in range.
+    """
+    assignments: dict[str, str] = {}
+    used: set[str] = set(RESERVED_SEED_EA_IDS)
+    used.update(existing_map.values())
+    used.update(seed_reservations.values())
+
+    for source_id in source_ids:
+        if source_id in seed_reservations:
+            ea_id = seed_reservations[source_id]
+            assignments[source_id] = ea_id
+            used.add(ea_id)
+            continue
+        key = (dataset, source_id)
+        if key in existing_map:
+            ea_id = existing_map[key]
+            assignments[source_id] = ea_id
+            used.add(ea_id)
+            continue
+
+    next_id = range_start
+    for source_id in source_ids:
+        if source_id in assignments:
+            continue
+        next_id = _next_free_id(next_id, used, range_end_exclusive)
+        ea_id = f"EAQ{next_id:06d}"
+        assignments[source_id] = ea_id
+        used.add(ea_id)
+        next_id += 1
+    return assignments
+
+
 def build_meld_row(
     record: MeldUtterance,
     *,
@@ -334,8 +483,8 @@ def build_meld_row(
     meld_root: str,
     check_media: bool,
     local_meld_root: Path | None = None,
+    seed_meta: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    duration = duration_from_timestamps(record.start_time, record.end_time)
     video = meld_video_path(meld_root, record.split, record.dialogue_id, record.utterance_id)
     present = media_exists(video, check_media)
     if present is None and check_media and local_meld_root is not None:
@@ -346,22 +495,34 @@ def build_meld_row(
         )
         if local.is_file():
             present = True
-        elif (local_meld_root / "extracted").exists() or (local_meld_root / "annotations").exists():
-            # Local tree present but this clip missing.
-            if any(local_meld_root.rglob(f"dia{record.dialogue_id}_utt{record.utterance_id}.mp4")):
-                present = True
-            else:
-                # Only treat as missing when extracted media tree exists.
-                extracted = local_meld_root / "extracted"
-                present = False if extracted.exists() else None
+        elif (local_meld_root / "extracted").exists():
+            present = any(
+                local_meld_root.rglob(f"dia{record.dialogue_id}_utt{record.utterance_id}.mp4")
+            )
 
     sarcasm = emotion_sentiment_mismatch(record.emotion, record.sentiment)
-    face_q, audio_q, text_q, usable_micro, usable_l4 = quality_flags(
-        text=record.utterance,
-        video_present=present,
-        duration=duration,
-        sarcasm_candidate=sarcasm,
-    )
+    subtitle_duration = duration_from_timestamps(record.start_time, record.end_time)
+
+    if seed_meta:
+        # Preserve already-accepted M1 seed evidence.
+        face_q = seed_meta["face_quality"]
+        audio_q = seed_meta["audio_quality"]
+        text_q = seed_meta["text_quality"]
+        usable_micro = seed_meta["usable_for_micro"]
+        usable_l4 = seed_meta["usable_for_l4"]
+        start = seed_meta.get("start") or "0.00"
+        end = seed_meta.get("end") or ""
+    else:
+        face_q, audio_q, text_q, usable_micro, usable_l4 = quality_flags(
+            text=record.utterance,
+            video_present=present,
+            duration=subtitle_duration if present is True else None,
+            sarcasm_candidate=sarcasm,
+        )
+        # Atomic utterance mp4: leave end empty unless media was probed with a duration.
+        start = "0.00"
+        end = format_end(subtitle_duration) if present is True and subtitle_duration else ""
+
     return {
         "ea_id": ea_id,
         "source_dataset": "MELD",
@@ -370,8 +531,8 @@ def build_meld_row(
         "video_path": video,
         "audio_path": video,
         "text_path": meld_text_path(meld_root, record.split, record.dialogue_id, record.utterance_id),
-        "start": "0.00",
-        "end": format_end(duration),
+        "start": start,
+        "end": end,
         "language": "en",
         "face_quality": face_q,
         "audio_quality": audio_q,
@@ -396,9 +557,10 @@ def build_mustard_row(
     present = media_exists(video, check_media)
     if present is None and check_media and local_mustard_root is not None:
         local = probe_mustard_video_path(clip.utterance_id, local_mustard_root)
-        present = True if local is not None else (
-            False if local_mustard_root.exists() else None
-        )
+        if local is not None:
+            present = True
+        elif local_mustard_root.exists():
+            present = False
 
     sarcasm = clip.sarcasm
     face_q, audio_q, text_q, usable_micro, usable_l4 = quality_flags(
@@ -415,7 +577,7 @@ def build_mustard_row(
         "video_path": video,
         "audio_path": video,
         "text_path": mustard_text_path(json_path, clip.utterance_id),
-        "start": "0.00",
+        "start": "",
         "end": "",
         "language": "en",
         "face_quality": face_q,
@@ -437,12 +599,19 @@ def write_index_csv(path: Path, rows: Sequence[Mapping[str, str]]) -> None:
             writer.writerow({col: row.get(col, "") for col in INDEX_COLUMNS})
 
 
-def summarize_rows(rows: Sequence[Mapping[str, str]]) -> dict[str, Any]:
+def summarize_rows(
+    rows: Sequence[Mapping[str, str]],
+    *,
+    seed_inherited: int = 0,
+) -> dict[str, Any]:
     split_counts = Counter(row["source_split"] for row in rows)
     face_counts = Counter(row["face_quality"] for row in rows)
     sarcasm_n = sum(1 for row in rows if row.get("is_sarcasm_candidate") == "true")
     usable_l4 = sum(1 for row in rows if row.get("usable_for_l4") == "true")
     usable_micro = sum(1 for row in rows if row.get("usable_for_micro") == "true")
+    media_unknown = sum(1 for row in rows if row.get("face_quality") == "missing")
+    sorted_ids = sorted(row["ea_id"] for row in rows)
+    new_ids = [row["ea_id"] for row in rows if row["ea_id"] not in RESERVED_SEED_EA_IDS]
     return {
         "total": len(rows),
         "splits": dict(sorted(split_counts.items())),
@@ -450,8 +619,13 @@ def summarize_rows(rows: Sequence[Mapping[str, str]]) -> dict[str, Any]:
         "sarcasm_candidates": sarcasm_n,
         "usable_for_l4": usable_l4,
         "usable_for_micro": usable_micro,
-        "ea_id_first": rows[0]["ea_id"] if rows else "",
-        "ea_id_last": rows[-1]["ea_id"] if rows else "",
+        "media_unverified_or_missing": media_unknown,
+        "ea_id_first": sorted_ids[0] if sorted_ids else "",
+        "ea_id_last": sorted_ids[-1] if sorted_ids else "",
+        "seed_rows_inherited": seed_inherited,
+        "new_rows_allocated": len(rows) - seed_inherited,
+        "new_ea_id_first": min(new_ids) if new_ids else "",
+        "new_ea_id_last": max(new_ids) if new_ids else "",
     }
 
 
@@ -474,42 +648,71 @@ def generate_dialogue_indexes(
     mustard_path_root: str,
     meld_output: Path,
     mustard_output: Path,
+    m1_index_path: Path | None = None,
+    allocation_map_path: Path | None = None,
     check_media: bool = False,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], dict[str, Any], dict[str, Any]]:
     meld_records = load_meld_utterances(meld_ann_root)
     mustard_clips = load_mustard_clips(mustard_json)
 
     local_meld = meld_ann_root if check_media else None
-    local_mustard = mustard_json.parent if check_media else None
-    mustard_json_str = str(mustard_json if mustard_json.is_absolute() else mustard_json).replace(
-        "\\", "/"
+    local_mustard = (
+        Path(mustard_path_root) if check_media and not mustard_path_root.startswith("/root/") else None
     )
-    # Prefer server-style text pointer when path root is the canonical server tree.
-    if mustard_path_root.startswith("/root/"):
-        mustard_json_for_text = f"{mustard_path_root.rstrip('/')}/sarcasm_data.json"
+    if check_media and local_mustard is None and mustard_json.parent.exists():
+        # Prefer probing under mustard dataset root siblings when available.
+        candidate = mustard_json.parent.parent if mustard_json.parent.name == "data" else mustard_json.parent
+        local_mustard = candidate
+
+    if mustard_path_root.startswith("/root/") or mustard_path_root.startswith("/data/"):
+        mustard_json_for_text = mustard_json_server_path(mustard_path_root)
     else:
-        mustard_json_for_text = mustard_json_str
+        mustard_json_for_text = str(mustard_json).replace("\\", "/")
+
+    m1_path = m1_index_path or Path()
+    seed_reservations = read_m1_meld_reservations(m1_path)
+    seed_meta = read_m1_meld_seed_metadata(m1_path)
+
+    existing = read_allocation_map(allocation_map_path)
+    existing.update(read_index_allocation(meld_output, "MELD"))
+    existing.update(read_index_allocation(mustard_output, "MUStARD"))
+
+    meld_ids = assign_ea_ids(
+        dataset="MELD",
+        source_ids=[record.source_id for record in meld_records],
+        range_start=MELD_EA_ID_START,
+        range_end_exclusive=MUSTARD_EA_ID_START,
+        seed_reservations=seed_reservations,
+        existing_map=existing,
+    )
+    mustard_ids = assign_ea_ids(
+        dataset="MUStARD",
+        source_ids=[clip.source_id for clip in mustard_clips],
+        range_start=MUSTARD_EA_ID_START,
+        range_end_exclusive=300_000,
+        seed_reservations={},
+        existing_map=existing,
+    )
 
     meld_rows: list[dict[str, str]] = []
-    for offset, record in enumerate(meld_records):
-        ea_id = f"EAQ{MELD_EA_ID_START + offset:06d}"
+    for record in meld_records:
         meld_rows.append(
             build_meld_row(
                 record,
-                ea_id=ea_id,
+                ea_id=meld_ids[record.source_id],
                 meld_root=meld_path_root,
                 check_media=check_media,
                 local_meld_root=local_meld,
+                seed_meta=seed_meta.get(record.source_id),
             )
         )
 
     mustard_rows: list[dict[str, str]] = []
-    for offset, clip in enumerate(mustard_clips):
-        ea_id = f"EAQ{MUSTARD_EA_ID_START + offset:06d}"
+    for clip in mustard_clips:
         mustard_rows.append(
             build_mustard_row(
                 clip,
-                ea_id=ea_id,
+                ea_id=mustard_ids[clip.source_id],
                 mustard_root=mustard_path_root,
                 json_path=mustard_json_for_text,
                 check_media=check_media,
@@ -519,7 +722,18 @@ def generate_dialogue_indexes(
 
     write_index_csv(meld_output, meld_rows)
     write_index_csv(mustard_output, mustard_rows)
-    return meld_rows, mustard_rows, summarize_rows(meld_rows), summarize_rows(mustard_rows)
+
+    combined_map: dict[tuple[str, str], str] = dict(existing)
+    for source_id, ea_id in meld_ids.items():
+        combined_map[("MELD", source_id)] = ea_id
+    for source_id, ea_id in mustard_ids.items():
+        combined_map[("MUStARD", source_id)] = ea_id
+    if allocation_map_path is not None:
+        write_allocation_map(allocation_map_path, combined_map)
+
+    meld_summary = summarize_rows(meld_rows, seed_inherited=len(seed_reservations))
+    mustard_summary = summarize_rows(mustard_rows, seed_inherited=0)
+    return meld_rows, mustard_rows, meld_summary, mustard_summary
 
 
 def render_dialogue_report(
@@ -532,13 +746,26 @@ def render_dialogue_report(
     mustard_json_source: str,
     meld_output: str,
     mustard_output: str,
+    allocation_map_source: str,
     m1_meld_ids: Sequence[str],
-    meld_source_ids: Iterable[str],
+    meld_rows: Sequence[Mapping[str, str]],
     check_media: bool,
+    generation_command: str,
 ) -> str:
-    meld_id_set = set(meld_source_ids)
-    m1_hits = [sid for sid in m1_meld_ids if sid in meld_id_set]
-    m1_misses = [sid for sid in m1_meld_ids if sid not in meld_id_set]
+    by_source = {row["source_id"]: row for row in meld_rows}
+    m1_hits = [sid for sid in m1_meld_ids if sid in by_source]
+    m1_misses = [sid for sid in m1_meld_ids if sid not in by_source]
+    m1_id_mismatches = [
+        f"{sid} expected seed id missing or remapped to {by_source[sid]['ea_id']}"
+        for sid in m1_hits
+        if sid in by_source and by_source[sid]["ea_id"] not in RESERVED_SEED_EA_IDS
+    ]
+    # Stronger check: compare against reservations when available via ea_id in 000012-000020
+    seed_ok = sum(
+        1
+        for sid in m1_hits
+        if by_source[sid]["ea_id"] in RESERVED_SEED_EA_IDS
+    )
 
     lines = [
         "# Dialogue Dataset Index Report (MELD / MUStARD)",
@@ -550,11 +777,13 @@ def render_dialogue_report(
         "- Build utterance-level `source_index` for MELD and MUStARD.",
         "- Mark face/audio/text usability for micro and L4 workflows.",
         "- Explicitly flag sarcasm candidates via extension columns.",
+        "- Preserve M1 MELD seed `ea_id` values per `docs/source_index_contract.md`.",
         "",
         "## Outputs",
         "",
         f"- `{meld_output}`",
         f"- `{mustard_output}`",
+        f"- allocation map: `{allocation_map_source}`",
         "",
         "## Path Roots",
         "",
@@ -563,14 +792,31 @@ def render_dialogue_report(
         f"- MELD annotations used for generation: `{meld_ann_source}`",
         f"- MUStARD JSON used for generation: `{mustard_json_source}`",
         f"- `--check-media`: `{bool_str(check_media)}`",
+        f"- generation command: `{generation_command}`",
         "",
-        "## EA ID Ranges",
+        "## Allocation",
         "",
-        f"- MELD: `{meld_summary.get('ea_id_first')}` … `{meld_summary.get('ea_id_last')}` "
-        f"(start `EAQ{MELD_EA_ID_START:06d}`)",
-        f"- MUStARD: `{mustard_summary.get('ea_id_first')}` … `{mustard_summary.get('ea_id_last')}` "
-        f"(start `EAQ{MUSTARD_EA_ID_START:06d}`)",
-        "- Reserved separately from M1 seed IDs `EAQ000001`–`EAQ000020`.",
+        "```text",
+        "dataset: MELD",
+        f"first_ea_id: {meld_summary.get('ea_id_first')}",
+        f"last_ea_id: {meld_summary.get('ea_id_last')}",
+        f"seed_rows_inherited: {meld_summary.get('seed_rows_inherited')}",
+        f"new_rows_allocated: {meld_summary.get('new_rows_allocated')}",
+        f"new_ea_id_first: {meld_summary.get('new_ea_id_first')}",
+        f"new_ea_id_last: {meld_summary.get('new_ea_id_last')}",
+        "allocation_map_source: source_index/m1_sample_20.csv + "
+        f"{allocation_map_source} + docs/source_index_contract.md",
+        "```",
+        "",
+        "```text",
+        "dataset: MUStARD",
+        f"first_ea_id: {mustard_summary.get('ea_id_first')}",
+        f"last_ea_id: {mustard_summary.get('ea_id_last')}",
+        f"seed_rows_inherited: {mustard_summary.get('seed_rows_inherited')}",
+        f"new_rows_allocated: {mustard_summary.get('new_rows_allocated')}",
+        "allocation_map_source: "
+        f"{allocation_map_source} + docs/source_index_contract.md",
+        "```",
         "",
         "## Schema Extension",
         "",
@@ -584,6 +830,8 @@ def render_dialogue_report(
         f"- Total utterances: **{meld_summary['total']}**",
         f"- Split counts: `{meld_summary['splits']}`",
         f"- Face quality: `{meld_summary['face_quality']}`",
+        f"- Media unverified or missing (`face_quality=missing`): "
+        f"**{meld_summary['media_unverified_or_missing']}**",
         f"- Sarcasm candidates (emotion/sentiment polarity mismatch): "
         f"**{meld_summary['sarcasm_candidates']}**",
         f"- `usable_for_l4=true`: **{meld_summary['usable_for_l4']}**",
@@ -594,12 +842,15 @@ def render_dialogue_report(
         "- `source_id`: `MELD/train/dia0/utt0`",
         "- `text_path`: `{annotations}/train_sent_emo.csv#Dialogue_ID=0&Utterance_ID=0`",
         "- `video_path`: `{extracted}/MELD.Raw/train_splits/dia0_utt0.mp4`",
+        "- `video_path` (dev): `{extracted}/MELD.Raw/dev_splits_complete/dia*_utt*.mp4`",
         "",
         "## MUStARD Summary",
         "",
         f"- Total clips: **{mustard_summary['total']}**",
         f"- Split counts: `{mustard_summary['splits']}`",
         f"- Face quality: `{mustard_summary['face_quality']}`",
+        f"- Media unverified or missing (`face_quality=missing`): "
+        f"**{mustard_summary['media_unverified_or_missing']}**",
         f"- Sarcasm candidates (official label): **{mustard_summary['sarcasm_candidates']}**",
         f"- `usable_for_l4=true`: **{mustard_summary['usable_for_l4']}**",
         f"- `usable_for_micro=true`: **{mustard_summary['usable_for_micro']}**",
@@ -607,15 +858,18 @@ def render_dialogue_report(
         "### Traceability example",
         "",
         "- `source_id`: original MUStARD utterance key (e.g. `1_60`)",
-        "- `text_path`: `sarcasm_data.json#utterance_id=1_60`",
-        "- `video_path`: `{mustard_root}/utterances_final/{id}.mp4` (canonical guess)",
+        "- `text_path`: `{mustard_root}/data/sarcasm_data.json#utterance_id=1_60`",
+        "- `video_path`: `{mustard_root}/raw/clips/utterances_final/{id}.mp4`",
         "",
         "## Cross-check with M1 seed index",
         "",
         f"- M1 MELD source_ids: **{len(m1_meld_ids)}**",
         f"- Found in `meld_index.csv`: **{len(m1_hits)}**",
+        f"- Seed ea_id preserved: **{seed_ok}**",
         f"- Missing: **{len(m1_misses)}**"
         + (f" (`{', '.join(m1_misses)}`)" if m1_misses else ""),
+        f"- Remapped away from seed range: **{len(m1_id_mismatches)}**"
+        + (f" (`{'; '.join(m1_id_mismatches)}`)" if m1_id_mismatches else ""),
         "",
         "## Selection / quality rules",
         "",
@@ -623,17 +877,20 @@ def render_dialogue_report(
         "2. MELD sarcasm candidate when Emotion polarity conflicts with Sentiment polarity "
         "(neutral either side is not a conflict).",
         "3. MUStARD sarcasm candidate when official `sarcasm=true`.",
-        "4. Without local face detection, existing media is marked `face_quality=medium` "
-        "(not `high`).",
-        "5. `usable_for_l4` requires usable text and (sarcasm candidate or non-missing face).",
+        "4. Unchecked media (`--check-media` off) => `face_quality=missing`, "
+        "`usable_for_micro=false` (contract).",
+        "5. M1 MELD seed rows inherit measured duration and accepted quality from "
+        "`m1_sample_20.csv`.",
+        "6. `usable_for_l4` requires usable text and (sarcasm candidate or non-missing face).",
+        "7. EA IDs persist via allocation map; inserting new source rows does not renumber "
+        "existing assignments.",
         "",
         "## Known limitations",
         "",
-        "- Full-corpus face detection was not run; face quality is heuristic.",
-        "- MUStARD video filenames vary by unpack layout; path is a best-effort canonical guess.",
-        "- MELD `end` uses subtitle StartTime/EndTime delta when available; not ffprobe duration.",
-        "- Server media existence was not verified unless `--check-media` was enabled on a machine "
-        "that can see those files.",
+        "- Full-corpus face detection was not run.",
+        "- Default generation does not verify server media existence; re-run on the dataset "
+        "host with `--check-media` after mounting the AutoDL paths to flip verified rows.",
+        "- MUStARD `start/end` are empty (atomic clip files).",
         "",
     ]
     return "\n".join(lines)

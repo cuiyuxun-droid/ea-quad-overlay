@@ -27,6 +27,7 @@ DEFAULT_MELD_OUT = ROOT / "source_index" / "meld_index.csv"
 DEFAULT_MUSTARD_OUT = ROOT / "source_index" / "mustard_index.csv"
 DEFAULT_REPORT = ROOT / "reports" / "dialogue_dataset_index_report.md"
 DEFAULT_M1 = ROOT / "source_index" / "m1_sample_20.csv"
+DEFAULT_ALLOC_MAP = ROOT / "source_index" / "meld_mustard_ea_id_map.csv"
 DEFAULT_MELD_PATH_ROOT = "/root/autodl-tmp/data/datasets/meld"
 DEFAULT_MUSTARD_PATH_ROOT = "/root/autodl-tmp/data/datasets/mustard"
 
@@ -67,6 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--m1-index", type=Path, default=DEFAULT_M1)
     parser.add_argument(
+        "--allocation-map",
+        type=Path,
+        default=DEFAULT_ALLOC_MAP,
+        help="Persisted ea_id allocation map (stable across regenerations)",
+    )
+    parser.add_argument(
         "--fetch-mustard",
         action="store_true",
         help="Download official MUStARD sarcasm_data.json before generation",
@@ -77,6 +84,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Probe local media existence when possible",
     )
     args = parser.parse_args(argv)
+    argv_display = " ".join(argv) if argv is not None else " ".join(sys.argv[1:])
+    generation_command = (
+        f"python scripts/build_meld_mustard_index.py {argv_display}".strip()
+    )
 
     try:
         if args.fetch_mustard or not args.mustard_json.is_file():
@@ -89,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
             mustard_path_root=args.mustard_path_root,
             meld_output=args.meld_output,
             mustard_output=args.mustard_output,
+            m1_index_path=args.m1_index,
+            allocation_map_path=args.allocation_map,
             check_media=args.check_media,
         )
 
@@ -104,9 +117,11 @@ def main(argv: list[str] | None = None) -> int:
                 mustard_json_source=_rel_or_abs(args.mustard_json),
                 meld_output=_rel_or_abs(args.meld_output),
                 mustard_output=_rel_or_abs(args.mustard_output),
+                allocation_map_source=_rel_or_abs(args.allocation_map),
                 m1_meld_ids=m1_ids,
-                meld_source_ids=(row["source_id"] for row in meld_rows),
+                meld_rows=meld_rows,
                 check_media=args.check_media,
+                generation_command=generation_command or "python scripts/build_meld_mustard_index.py",
             ),
             encoding="utf-8",
         )
@@ -118,6 +133,11 @@ def main(argv: list[str] | None = None) -> int:
         "OK: wrote "
         f"{meld_summary['total']} MELD rows -> {args.meld_output} ; "
         f"{mustard_summary['total']} MUStARD rows -> {args.mustard_output}"
+    )
+    print(
+        f"OK: seed_inherited={meld_summary['seed_rows_inherited']} "
+        f"usable_for_micro meld/mustard="
+        f"{meld_summary['usable_for_micro']}/{mustard_summary['usable_for_micro']}"
     )
     print(f"OK: report -> {args.report}")
     return 0
