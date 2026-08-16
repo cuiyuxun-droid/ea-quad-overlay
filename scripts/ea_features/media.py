@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -19,6 +20,10 @@ ZIP_MEMBER_RE = re.compile(r"^(?P<zip>.+\.zip)::(?P<member>.+)$", re.IGNORECASE)
 CH_SIMS_POINTER_RE = re.compile(r"^(.+#)?(?P<key>video_\d+/\d+)$")
 MELD_POINTER_RE = re.compile(
     r"^(?P<csv>.+\.csv)#Dialogue_ID=(?P<dialog>\d+)&Utterance_ID=(?P<utt>\d+)$",
+    re.IGNORECASE,
+)
+MUSTARD_POINTER_RE = re.compile(
+    r"^(?P<json>.+\.json)#utterance_id=(?P<uid>[^#]+)$",
     re.IGNORECASE,
 )
 
@@ -155,10 +160,21 @@ class MediaResolver:
                 utterance_id=int(meld.group("utt")),
             )
 
+        mustard = MUSTARD_POINTER_RE.match(text_spec)
+        if mustard:
+            return read_mustard_utterance(
+                Path(mustard.group("json")),
+                utterance_id=mustard.group("uid").strip(),
+            )
+
         if "#" in text_spec:
             csv_path_str, pointer = text_spec.split("#", 1)
             csv_path = Path(csv_path_str)
             pointer = pointer.strip()
+            if csv_path.suffix.lower() == ".json":
+                qs = parse_qs(pointer)
+                if "utterance_id" in qs:
+                    return read_mustard_utterance(csv_path, qs["utterance_id"][0])
             if csv_path.suffix.lower() == ".csv" and csv_path.is_file():
                 # CH-SIMS style: label.csv#video_0001/0001
                 if re.fullmatch(r"video_\d+/\d+", pointer):
@@ -307,6 +323,20 @@ def read_meld_utterance(csv_path: Path, dialogue_id: int, utterance_id: int) -> 
     raise KeyError(
         f"MELD utterance not found Dialogue_ID={dialogue_id} Utterance_ID={utterance_id} in {csv_path}"
     )
+
+
+def read_mustard_utterance(json_path: Path, utterance_id: str) -> str:
+    """Lookup MUStARD utterance text from sarcasm_data.json#utterance_id=..."""
+    if not json_path.is_file():
+        raise FileNotFoundError(f"MUStARD json not found: {json_path}")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"MUStARD json must be an object: {json_path}")
+    item = payload.get(utterance_id)
+    if not isinstance(item, dict):
+        raise KeyError(f"MUStARD utterance_id={utterance_id!r} not found in {json_path}")
+    text = item.get("utterance") or item.get("text") or ""
+    return str(text).strip()
 
 
 def read_source_index(path: Path) -> list[dict[str, str]]:

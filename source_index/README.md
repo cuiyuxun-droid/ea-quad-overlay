@@ -28,6 +28,15 @@ pointers are defined in
 | `usable_for_micro` | Whether the row can be used for micro-expression review: `true` or `false`. |
 | `usable_for_l4` | Whether the row can be used for L4 labeling or evaluation: `true` or `false`. |
 
+## Optional Extension Columns
+
+Dataset-level indexes such as `meld_index.csv` and `mustard_index.csv` may append:
+
+| Column | Description |
+| --- | --- |
+| `is_sarcasm_candidate` | Whether the row is a sarcasm / irony candidate: `true` or `false`. |
+| `candidate_reason` | Why it was marked, for example `meld_emotion_sentiment_mismatch` or `mustard_label`. |
+
 ## Source ID Guidance
 
 Use the original dataset's most stable identifier in `source_id`. If a dataset
