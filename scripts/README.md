@@ -36,3 +36,14 @@ scripts/
 6. **Naming** — Script names are `snake_case.py`. A script that processes a
    single dataset is named `{action}_{dataset}.py` (e.g. `ingest_ch_sims.py`).
    A multi-dataset script is named `{action}.py` (e.g. `ingest.py`).
+
+## Index and Feature Extraction Contract
+
+Source-index roles, global `ea_id` rules, text/media pointer formats, and
+cross-index validation are defined in
+[`docs/source_index_contract.md`](../docs/source_index_contract.md).
+
+For PR evidence and merge approval, use
+[`docs/pr_acceptance_checklist.md`](../docs/pr_acceptance_checklist.md). In
+particular, do not let a batch script discover seed and full dataset indexes as
+independent samples in the same run.

@@ -3,6 +3,11 @@
 `source_index_template.csv` is the canonical schema for mapping every EA sample
 back to its original dataset record.
 
+The schema is only the per-file portion of the contract. Global ID allocation,
+seed/dataset/master index roles, cross-file uniqueness, and supported path
+pointers are defined in
+[`docs/source_index_contract.md`](../docs/source_index_contract.md).
+
 ## Columns
 
 | Column | Description |
@@ -44,3 +49,9 @@ requires a composite key, join the parts with `/` so it remains readable.
 | `IEMOCAP` | Session/dialogue/utterance identifier, such as an original utterance filename stem. |
 | `MOSEI` | Original video ID plus clip or segment identifier. |
 | `MUStARD` | Original clip ID or statement ID. |
+
+## Before Adding an Index
+
+Run the per-file validator and then the repository-level merge checks described
+in [`docs/pr_acceptance_checklist.md`](../docs/pr_acceptance_checklist.md).
+Never assign IDs from `EAQ000001` without checking the existing allocation map.
