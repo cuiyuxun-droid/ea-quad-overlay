@@ -25,6 +25,13 @@ GitHub issue: <https://github.com/cuiyuxun-droid/ea-quad-overlay/issues/8>
 - Output index: `source_index\ch_sims_index.csv`
 - Output labels: `source_index\ch_sims_labels.csv`
 
+## Reproduction
+
+- Source snapshot: public CH-SIMS `label.csv` from the Hugging Face URL in the builder.
+- Base command: `python scripts/generate_ch_sims_index.py --fetch-label --allocation-map source_index/ch_sims_index.csv`
+- Dataset-host command: add `--probe-media --dataset-root <server_ch_sims>` to record measured media evidence.
+- Stable allocation map: `source_index\ch_sims_index.csv`
+
 ## Allocation
 
 ```text
@@ -33,7 +40,7 @@ first_ea_id: EAQ000001
 last_ea_id: EAQ002290
 seed_rows_inherited: 11
 new_rows_allocated: 2270
-allocation_map_source: source_index/m1_sample_20.csv + docs/source_index_contract.md
+allocation_map_source: source_index\ch_sims_index.csv + docs/source_index_contract.md
 ```
 
 ## Label coverage

@@ -20,12 +20,14 @@ from ea_quad_overlay.ch_sims_index import (  # noqa: E402
     read_label_csv,
     render_index_report,
     write_probe_csv,
+    validate_global_index_paths,
 )
 
 
 DEFAULT_LABEL = ROOT / ".cache" / "ch_sims" / "label.csv"
 DEFAULT_OUTPUT = ROOT / "source_index" / "ch_sims_index.csv"
 DEFAULT_LABELS = ROOT / "source_index" / "ch_sims_labels.csv"
+DEFAULT_ALLOCATION_MAP = DEFAULT_OUTPUT
 DEFAULT_PROBE = ROOT / "source_index" / "ch_sims_media_probe.csv"
 DEFAULT_M1 = ROOT / "source_index" / "m1_sample_20.csv"
 DEFAULT_REPORT = ROOT / "reports" / "ch_sims_index_report.md"
@@ -37,10 +39,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--label-csv", type=Path, default=DEFAULT_LABEL)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--labels-output", type=Path, default=DEFAULT_LABELS)
+    parser.add_argument(
+        "--allocation-map",
+        type=Path,
+        default=DEFAULT_ALLOCATION_MAP,
+        help="Existing CH-SIMS index used to preserve source-to-ea_id assignments.",
+    )
     parser.add_argument("--probe-output", type=Path, default=DEFAULT_PROBE)
     parser.add_argument("--m1-index", type=Path, default=DEFAULT_M1)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT)
+    parser.add_argument(
+        "--related-index",
+        type=Path,
+        action="append",
+        default=[],
+        help="Additional dataset index to include in global ID validation.",
+    )
     parser.add_argument(
         "--fetch-label",
         action="store_true",
@@ -81,6 +96,12 @@ def main(argv: list[str] | None = None) -> int:
             write_probe_csv(args.probe_output, probes)
             probe_csv = args.probe_output
 
+        registry_paths = [
+            path for path in [args.allocation_map, *args.related_index] if path.is_file()
+        ]
+        if registry_paths:
+            validate_global_index_paths(registry_paths)
+
         (
             _index_rows,
             _label_rows,
@@ -94,9 +115,11 @@ def main(argv: list[str] | None = None) -> int:
             labels_csv=args.labels_output,
             dataset_root=args.dataset_root,
             m1_index_path=args.m1_index,
+            allocation_map_path=args.allocation_map,
             probe_csv=probe_csv,
             probes=probes,
         )
+        validate_global_index_paths([args.output, *args.related_index])
         labels_summary = {
             "total": extras["total"],
             "missing_label_fields": extras["missing_label_fields"],
@@ -120,6 +143,9 @@ def main(argv: list[str] | None = None) -> int:
                 labels_csv=str(args.labels_output.relative_to(ROOT))
                 if args.labels_output.is_relative_to(ROOT)
                 else str(args.labels_output),
+                allocation_map_source=str(args.allocation_map.relative_to(ROOT))
+                if args.allocation_map.is_relative_to(ROOT)
+                else str(args.allocation_map),
             ),
             encoding="utf-8",
         )

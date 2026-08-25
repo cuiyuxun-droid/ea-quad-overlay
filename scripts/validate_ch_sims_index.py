@@ -17,6 +17,7 @@ from ea_quad_overlay.ch_sims_index import (  # noqa: E402
     read_index_csv,
     read_labels_csv,
     read_m1_ch_sims_reservations,
+    validate_global_index_paths,
     validate_index_rows,
     validate_labels_rows,
 )
@@ -32,6 +33,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--index", type=Path, default=DEFAULT_INDEX)
     parser.add_argument("--labels", type=Path, default=DEFAULT_LABELS)
     parser.add_argument("--m1-index", type=Path, default=DEFAULT_M1)
+    parser.add_argument(
+        "--related-index",
+        type=Path,
+        action="append",
+        default=[],
+        help="Additional dataset index to include in global ID validation.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -40,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
         reserved = read_m1_ch_sims_reservations(args.m1_index)
         summary = validate_index_rows(rows, reserved_by_source_key=reserved)
         labels_summary = validate_labels_rows(labels, rows)
+        global_summary = validate_global_index_paths([args.index, *args.related_index])
     except (OSError, ChSimsIndexError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -48,7 +57,8 @@ def main(argv: list[str] | None = None) -> int:
         "OK: validated "
         f"{summary['total']} CH-SIMS rows and {labels_summary['total']} labels "
         f"(micro={summary['usable_for_micro']}, l4={summary['usable_for_l4']}, "
-        f"timed={summary['timed_rows']}, atomic={summary['atomic_rows']})"
+        f"timed={summary['timed_rows']}, atomic={summary['atomic_rows']}, "
+        f"global_ids={global_summary['unique_ea_ids']})"
     )
     return 0
 

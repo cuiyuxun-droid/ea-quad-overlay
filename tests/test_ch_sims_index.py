@@ -13,6 +13,7 @@ from ea_quad_overlay.ch_sims_index import (
     generate_ch_sims_index,
     read_index_csv,
     read_labels_csv,
+    validate_global_index_paths,
     validate_index_rows,
     validate_labels_rows,
 )
@@ -48,6 +49,22 @@ def test_assign_ea_ids_preserves_m1_and_starts_new_at_021() -> None:
     assert assigned["video_0001/0001"] == "EAQ000021"
     assert assigned["video_0001/0003"] == "EAQ000022"
     assert "EAQ000012" not in assigned.values()
+
+
+def test_assign_ea_ids_preserves_existing_assignments() -> None:
+    records = [
+        ChSimsRecord("video_0001", "0001", "a", "0", "0", "0", "0", "Neutral", "train"),
+        ChSimsRecord("video_0001", "0002", "b", "0", "0", "0", "0", "Neutral", "train"),
+    ]
+    assigned = assign_ea_ids(
+        records,
+        {},
+        {"video_0001/0001": "EAQ000099"},
+    )
+    assert assigned == {
+        "video_0001/0001": "EAQ000099",
+        "video_0001/0002": "EAQ000021",
+    }
 
 
 def test_unprobed_rows_are_not_marked_usable(tmp_path: Path) -> None:
@@ -177,3 +194,59 @@ def test_usable_micro_with_missing_face_is_rejected() -> None:
             ],
             min_rows=1,
         )
+
+
+def test_label_validation_rejects_missing_and_mismatched_source_fields() -> None:
+    index = [
+        {
+            "ea_id": "EAQ000021",
+            "source_id": "CH-SIMS/video_0001/0001",
+        }
+    ]
+    labels = [
+        {
+            "ea_id": "EAQ000021",
+            "source_id": "CH-SIMS/video_0001/0001",
+            "source_key": "wrong/record",
+            "label": "",
+            "label_t": "1",
+            "label_a": "1",
+            "label_v": "1",
+            "annotation": "Positive",
+        }
+    ]
+    with pytest.raises(ChSimsIndexError, match="source_key mismatch"):
+        validate_labels_rows(labels, index)
+    labels[0]["source_key"] = "video_0001/0001"
+    with pytest.raises(ChSimsIndexError, match="empty original label fields"):
+        validate_labels_rows(labels, index)
+
+
+def test_global_index_validation_rejects_ea_id_collision(tmp_path: Path) -> None:
+    import csv
+
+    fields = ["ea_id", "source_dataset", "source_id"]
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    for path, row in (
+        (first, ["EAQ000021", "CH-SIMS", "CH-SIMS/video_0001/0001"]),
+        (second, ["EAQ000021", "IEMOCAP", "IEMOCAP/Session1/utt1"]),
+    ):
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(fields)
+            writer.writerow(row)
+    with pytest.raises(ChSimsIndexError, match="collides|outside"):
+        validate_global_index_paths([first, second])
+
+
+def test_global_index_validation_rejects_wrong_dataset_range(tmp_path: Path) -> None:
+    import csv
+
+    path = tmp_path / "iemocap.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["ea_id", "source_dataset", "source_id"])
+        writer.writerow(["EAQ000021", "IEMOCAP", "IEMOCAP/Session1/utt1"])
+    with pytest.raises(ChSimsIndexError, match="outside"):
+        validate_global_index_paths([path])

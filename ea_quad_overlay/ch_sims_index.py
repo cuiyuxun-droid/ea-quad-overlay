@@ -29,6 +29,15 @@ HF_LABEL_URL = "https://huggingface.co/datasets/tamb2203579/CH-SIMS/resolve/main
 # Historical M1 seed IDs that must never be minted for new CH-SIMS rows.
 RESERVED_MELD_EA_IDS = {f"EAQ{i:06d}" for i in range(12, 21)}
 CH_SIMS_NEW_ID_START = 21
+CH_SIMS_NEW_ID_END = 99999
+DATASET_ID_RANGES = {
+    "CH-SIMS": (21, 99999),
+    "MELD": (100000, 199999),
+    "MUStARD": (200000, 299999),
+    "IEMOCAP": (300000, 399999),
+    "MOSEI": (400000, 499999),
+    "MOSI": (500000, 599999),
+}
 
 INDEX_COLUMNS = (
     "ea_id",
@@ -185,6 +194,31 @@ def read_m1_seed_metadata(m1_index_path: Path) -> dict[str, dict[str, str]]:
                 "usable_for_l4": row.get("usable_for_l4") or "false",
             }
     return metadata
+
+
+def read_existing_ch_sims_assignments(index_path: Path) -> dict[str, str]:
+    """Read stable CH-SIMS source-to-ID assignments from an existing index."""
+    if not index_path.is_file():
+        return {}
+    assignments: dict[str, str] = {}
+    with index_path.open(newline="", encoding="utf-8") as handle:
+        for row_number, row in enumerate(csv.DictReader(handle), start=2):
+            if row.get("source_dataset") != "CH-SIMS":
+                continue
+            source_id = (row.get("source_id") or "").strip()
+            ea_id = (row.get("ea_id") or "").strip()
+            if not source_id.startswith(SOURCE_ID_PREFIX):
+                raise ChSimsIndexError(f"{index_path}:{row_number}: invalid CH-SIMS source_id")
+            if not EA_ID_RE.fullmatch(ea_id):
+                raise ChSimsIndexError(f"{index_path}:{row_number}: invalid ea_id {ea_id!r}")
+            key = source_id.removeprefix(SOURCE_ID_PREFIX)
+            previous = assignments.get(key)
+            if previous is not None and previous != ea_id:
+                raise ChSimsIndexError(
+                    f"{index_path}:{row_number}: source {source_id} has conflicting ea_ids"
+                )
+            assignments[key] = ea_id
+    return assignments
 
 
 def _text_quality(text: str) -> str:
@@ -350,13 +384,19 @@ def read_probe_csv(path: Path) -> dict[str, MediaProbeResult]:
 def assign_ea_ids(
     records: Sequence[ChSimsRecord],
     reserved_by_source_key: Mapping[str, str],
+    existing_by_source_key: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """Assign ea_id values while preserving M1 CH-SIMS IDs.
 
     New CH-SIMS rows use EAQ000021+ per docs/source_index_contract.md.
     """
     assignments: dict[str, str] = {}
-    used_ids: set[str] = set(reserved_by_source_key.values()) | set(RESERVED_MELD_EA_IDS)
+    existing = existing_by_source_key or {}
+    used_ids: set[str] = (
+        set(reserved_by_source_key.values())
+        | set(existing.values())
+        | set(RESERVED_MELD_EA_IDS)
+    )
     next_id = CH_SIMS_NEW_ID_START
 
     def next_free_id() -> str:
@@ -364,6 +404,8 @@ def assign_ea_ids(
         while True:
             candidate = f"EAQ{next_id:06d}"
             next_id += 1
+            if next_id > CH_SIMS_NEW_ID_END + 1:
+                raise ChSimsIndexError("CH-SIMS ea_id allocation range is exhausted")
             if candidate in used_ids:
                 continue
             used_ids.add(candidate)
@@ -373,10 +415,18 @@ def assign_ea_ids(
         key = record.source_key
         if key in reserved_by_source_key:
             ea_id = reserved_by_source_key[key]
+            if key in existing and existing[key] != ea_id:
+                raise ChSimsIndexError(
+                    f"existing assignment mismatch for {key}: "
+                    f"expected {ea_id}, got {existing[key]}"
+                )
             if ea_id in assignments.values():
                 raise ChSimsIndexError(f"duplicate reserved ea_id for {key}")
             assignments[key] = ea_id
             used_ids.add(ea_id)
+            continue
+        if key in existing:
+            assignments[key] = existing[key]
             continue
         assignments[key] = next_free_id()
     return assignments
@@ -434,13 +484,14 @@ def build_index_and_label_rows(
     *,
     dataset_root: str,
     reserved_by_source_key: Mapping[str, str] | None = None,
+    existing_by_source_key: Mapping[str, str] | None = None,
     probes: Mapping[str, MediaProbeResult] | None = None,
     m1_seed_meta: Mapping[str, Mapping[str, str]] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], dict[str, int]]:
     reserved = reserved_by_source_key or {}
     probes = probes or {}
     m1_seed_meta = m1_seed_meta or {}
-    ea_ids = assign_ea_ids(records, reserved)
+    ea_ids = assign_ea_ids(records, reserved, existing_by_source_key)
     index_rows: list[dict[str, str]] = []
     label_rows: list[dict[str, str]] = []
     provenance = Counter()
@@ -636,19 +687,100 @@ def validate_labels_rows(
             f"labels count {len(label_rows)} != index count {len(index_rows)}"
         )
     index_by_id = {row["ea_id"]: row for row in index_rows}
+    seen_ea_ids: set[str] = set()
+    seen_source_ids: set[str] = set()
     missing_fields = 0
     for row_number, row in enumerate(label_rows, start=2):
         ea_id = row["ea_id"]
+        if ea_id in seen_ea_ids:
+            raise ChSimsIndexError(f"labels row {row_number}: duplicate ea_id {ea_id}")
+        seen_ea_ids.add(ea_id)
         if ea_id not in index_by_id:
             raise ChSimsIndexError(f"labels row {row_number}: ea_id {ea_id} not in index")
-        if row["source_id"] != index_by_id[ea_id]["source_id"]:
+        source_id = (row.get("source_id") or "").strip()
+        if source_id in seen_source_ids:
+            raise ChSimsIndexError(f"labels row {row_number}: duplicate source_id {source_id}")
+        seen_source_ids.add(source_id)
+        if not source_id.startswith(SOURCE_ID_PREFIX):
+            raise ChSimsIndexError(f"labels row {row_number}: invalid source_id {source_id}")
+        source_key = (row.get("source_key") or "").strip()
+        if source_key != source_id.removeprefix(SOURCE_ID_PREFIX):
+            raise ChSimsIndexError(f"labels row {row_number}: source_key mismatch for {ea_id}")
+        if source_id != index_by_id[ea_id]["source_id"]:
             raise ChSimsIndexError(f"labels row {row_number}: source_id mismatch for {ea_id}")
         for field in ("label", "label_t", "label_a", "label_v", "annotation"):
             if not str(row.get(field) or "").strip():
                 missing_fields += 1
+    if missing_fields:
+        raise ChSimsIndexError(f"labels contain {missing_fields} empty original label fields")
     return {
         "total": len(label_rows),
         "missing_label_fields": missing_fields,
+    }
+
+
+def validate_global_index_paths(paths: Sequence[Path]) -> dict[str, int]:
+    """Validate global ID and source identity consistency across index files."""
+    if not paths:
+        raise ChSimsIndexError("at least one index path is required")
+    seen_ea: dict[str, tuple[str, str, Path]] = {}
+    seen_source: dict[tuple[str, str], tuple[str, Path]] = {}
+    rows = 0
+    repeated_seed_rows = 0
+    for path in paths:
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            fields = set(reader.fieldnames or [])
+            required = {"ea_id", "source_dataset", "source_id"}
+            if not required <= fields:
+                missing = ", ".join(sorted(required - fields))
+                raise ChSimsIndexError(f"{path}: missing columns: {missing}")
+            for row_number, row in enumerate(reader, start=2):
+                rows += 1
+                ea_id = (row.get("ea_id") or "").strip()
+                dataset = (row.get("source_dataset") or "").strip()
+                source_id = (row.get("source_id") or "").strip()
+                if not EA_ID_RE.fullmatch(ea_id):
+                    raise ChSimsIndexError(f"{path}:{row_number}: invalid ea_id {ea_id!r}")
+                if not dataset or not source_id:
+                    raise ChSimsIndexError(f"{path}:{row_number}: missing source identity")
+                value = int(ea_id[3:])
+                allowed_range = DATASET_ID_RANGES.get(dataset)
+                if allowed_range and value > 20 and not (allowed_range[0] <= value <= allowed_range[1]):
+                    raise ChSimsIndexError(
+                        f"{path}:{row_number}: {dataset} ea_id {ea_id} is outside "
+                        f"EAQ{allowed_range[0]:06d}-EAQ{allowed_range[1]:06d}"
+                    )
+                source_identity = (dataset, source_id)
+                previous_ea = seen_source.get(source_identity)
+                if previous_ea is not None and previous_ea[0] != ea_id:
+                    raise ChSimsIndexError(
+                        f"{path}:{row_number}: source {source_identity} changes ea_id "
+                        f"from {previous_ea[0]} to {ea_id}"
+                    )
+                if previous_ea is not None:
+                    if previous_ea[1] == path:
+                        raise ChSimsIndexError(
+                            f"{path}:{row_number}: duplicate source record {source_identity}"
+                        )
+                    repeated_seed_rows += 1
+                seen_source[source_identity] = (ea_id, path)
+
+                previous_source = seen_ea.get(ea_id)
+                if previous_source is not None and previous_source[:2] != source_identity:
+                    raise ChSimsIndexError(
+                        f"{path}:{row_number}: ea_id {ea_id} collides with "
+                        f"{previous_source[1]}:{previous_source[0]}"
+                    )
+                if previous_source is not None and previous_source[2] == path:
+                    raise ChSimsIndexError(f"{path}:{row_number}: duplicate ea_id {ea_id}")
+                seen_ea[ea_id] = (dataset, source_id, path)
+    return {
+        "files": len(paths),
+        "rows": rows,
+        "unique_ea_ids": len(seen_ea),
+        "unique_source_records": len(seen_source),
+        "repeated_seed_rows": repeated_seed_rows,
     }
 
 
@@ -681,7 +813,41 @@ def render_index_report(
     dataset_root: str,
     output_csv: str,
     labels_csv: str,
+    allocation_map_source: str = "source_index/ch_sims_index.csv",
 ) -> str:
+    probe_total = int(probe_summary.get("total", 0))
+    probe_ok = int(probe_summary.get("ok", 0))
+    probe_missing = int(probe_summary.get("missing_file", 0))
+    probe_failed = int(probe_summary.get("failed", 0))
+    probe_complete = (
+        probe_total > 0
+        and probe_total == int(index_summary.get("total", 0))
+        and probe_ok == probe_total
+        and not probe_missing
+        and not probe_failed
+    )
+    evidence_pending = "pending_media_probe" if not probe_complete else "measured"
+    media_quality_note = (
+        "`face_quality` / `audio_quality`: measured from ffprobe for all indexed media."
+        if probe_complete
+        else (
+            "`face_quality` / `audio_quality`: `missing` until ffprobe confirms streams; "
+            "not claimed usable."
+        )
+    )
+    media_usable_note = (
+        "`usable_for_micro` / `usable_for_l4`: derived from successful media probes."
+        if probe_complete
+        else "`usable_for_micro` / `usable_for_l4`: false until media probe succeeds."
+    )
+    media_reprobe_note = (
+        "- Media probing completed successfully for every indexed row."
+        if probe_complete
+        else (
+            "- Re-run with `--probe-media --dataset-root <server_ch_sims>` on the dataset host "
+            "to fill measured durations and usability for the remaining rows."
+        )
+    )
     lines = [
         "# CH-SIMS Index Report",
         "",
@@ -701,7 +867,7 @@ def render_index_report(
         "| measured | Taken from ffprobe or M1 seed measured durations |",
         "| atomic_empty | Whole-file clip; `start/end` left empty intentionally |",
         "| heuristic | Text-quality only; documented below |",
-        "| pending_media_probe | Face/audio usability awaits media probing |",
+        f"| {evidence_pending} | Face/audio quality and usability evidence |",
         "",
         "## Inputs",
         "",
@@ -709,6 +875,15 @@ def render_index_report(
         f"- Dataset root: `{dataset_root}`",
         f"- Output index: `{output_csv}`",
         f"- Output labels: `{labels_csv}`",
+        "",
+        "## Reproduction",
+        "",
+        "- Source snapshot: public CH-SIMS `label.csv` from the Hugging Face URL in the builder.",
+        "- Base command: `python scripts/generate_ch_sims_index.py --fetch-label "
+        "--allocation-map source_index/ch_sims_index.csv`",
+        "- Dataset-host command: add `--probe-media --dataset-root <server_ch_sims>` "
+        "to record measured media evidence.",
+        f"- Stable allocation map: `{allocation_map_source}`",
         "",
         "## Allocation",
         "",
@@ -718,7 +893,7 @@ def render_index_report(
         f"last_ea_id: {index_summary.get('last_ea_id', '')}",
         f"seed_rows_inherited: {index_summary.get('reserved_m1_matches', 0)}",
         f"new_rows_allocated: {index_summary['total'] - index_summary.get('reserved_m1_matches', 0)}",
-        "allocation_map_source: source_index/m1_sample_20.csv + docs/source_index_contract.md",
+        f"allocation_map_source: {allocation_map_source} + docs/source_index_contract.md",
         "```",
         "",
         "## Label coverage",
@@ -802,10 +977,10 @@ def render_index_report(
             "## Heuristics and pending work",
             "",
             "- `text_quality`: `high` if text length >= 4, `medium` if non-empty shorter text, else `missing`.",
-            "- `face_quality` / `audio_quality`: `missing` until ffprobe confirms streams; not claimed usable.",
-            "- `usable_for_micro` / `usable_for_l4`: false until media probe succeeds.",
+            f"- {media_quality_note}",
+            f"- {media_usable_note}",
             "- Exception: 11 M1 CH-SIMS seed rows inherit measured duration and accepted quality from `m1_sample_20.csv`.",
-            "- Re-run with `--probe-media --dataset-root <server_ch_sims>` on the dataset host to fill measured durations and usability for the remaining rows.",
+            media_reprobe_note,
             "",
             "## Errors",
             "",
@@ -834,12 +1009,14 @@ def generate_ch_sims_index(
     labels_csv: Path,
     dataset_root: str,
     m1_index_path: Path,
+    allocation_map_path: Path | None = None,
     probe_csv: Path | None = None,
     probes: Mapping[str, MediaProbeResult] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], dict[str, Any], dict[str, Any], dict[str, int], dict[str, Any]]:
     records = read_label_csv(label_csv)
     reserved = read_m1_ch_sims_reservations(m1_index_path)
     m1_seed_meta = read_m1_seed_metadata(m1_index_path)
+    existing = read_existing_ch_sims_assignments(allocation_map_path) if allocation_map_path else {}
     loaded_probes: dict[str, MediaProbeResult] = {}
     if probes:
         loaded_probes.update(probes)
@@ -850,6 +1027,7 @@ def generate_ch_sims_index(
         records,
         dataset_root=dataset_root,
         reserved_by_source_key=reserved,
+        existing_by_source_key=existing,
         probes=loaded_probes,
         m1_seed_meta=m1_seed_meta,
     )
