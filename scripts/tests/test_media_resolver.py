@@ -15,7 +15,12 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from ea_features.media import MediaResolver, read_ch_sims_text, read_meld_utterance
+from ea_features.media import (
+    MediaResolver,
+    read_ch_sims_text,
+    read_meld_utterance,
+    read_mustard_utterance,
+)
 
 
 def _write_wav(path: Path, frames: int = 1600, sr: int = 16000) -> None:
@@ -102,9 +107,18 @@ def test_resolve_text_pointers(tmp_path: Path) -> None:
         writer.writeheader()
         writer.writerow({"Dialogue_ID": "1", "Utterance_ID": "2", "Utterance": "English text"})
 
+    mustard = tmp_path / "sarcasm_data.json"
+    mustard.write_text(
+        '{"1_10": {"utterance": "Sarcastic line", "sarcasm": true}}',
+        encoding="utf-8",
+    )
+
     resolver = MediaResolver(cache_root=tmp_path / "cache")
     assert resolver.resolve_text(f"{label}#video_0001/0001") == "中文文本"
     assert (
         resolver.resolve_text(f"{meld}#Dialogue_ID=1&Utterance_ID=2")
         == "English text"
     )
+    assert resolver.resolve_text(f"{mustard}#utterance_id=1_10") == "Sarcastic line"
+    assert read_mustard_utterance(mustard, "1_10") == "Sarcastic line"
+
