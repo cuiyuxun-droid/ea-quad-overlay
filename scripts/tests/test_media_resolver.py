@@ -3,19 +3,24 @@
 from __future__ import annotations
 
 import csv
+import json
 import sys
 import wave
 import zipfile
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from ea_features.media import MediaResolver, read_ch_sims_text, read_meld_utterance
+from ea_features.media import (  # noqa: E402
+    MediaResolver,
+    read_ch_sims_text,
+    read_meld_utterance,
+    read_mustard_utterance,
+)
 
 
 def _write_wav(path: Path, frames: int = 1600, sr: int = 16000) -> None:
@@ -86,6 +91,15 @@ def test_read_meld_utterance(tmp_path: Path) -> None:
     assert read_meld_utterance(csv_path, 0, 4) == "Hello there"
 
 
+def test_read_mustard_utterance(tmp_path: Path) -> None:
+    json_path = tmp_path / "sarcasm_data.json"
+    json_path.write_text(
+        json.dumps({"1_10": {"utterance": "Nice weather.", "sarcasm": True}}),
+        encoding="utf-8",
+    )
+    assert read_mustard_utterance(json_path, "1_10") == "Nice weather."
+
+
 def test_resolve_text_pointers(tmp_path: Path) -> None:
     label = tmp_path / "label.csv"
     with label.open("w", newline="", encoding="utf-8") as handle:
@@ -108,3 +122,9 @@ def test_resolve_text_pointers(tmp_path: Path) -> None:
         resolver.resolve_text(f"{meld}#Dialogue_ID=1&Utterance_ID=2")
         == "English text"
     )
+    mustard = tmp_path / "sarcasm_data.json"
+    mustard.write_text(
+        json.dumps({"1_10": {"utterance": "Nice weather.", "sarcasm": True}}),
+        encoding="utf-8",
+    )
+    assert resolver.resolve_text(f"{mustard}#utterance_id=1_10") == "Nice weather."
