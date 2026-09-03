@@ -8,13 +8,10 @@ import json
 import re
 import shutil
 import subprocess
-import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from urllib.parse import parse_qs
-
 
 ZIP_MEMBER_RE = re.compile(r"^(?P<zip>.+\.zip)::(?P<member>.+)$", re.IGNORECASE)
 CH_SIMS_POINTER_RE = re.compile(r"^(.+#)?(?P<key>video_\d+/\d+)$")
@@ -94,7 +91,9 @@ class MediaResolver:
         # Prefer extracting wav from video when audio_spec points at the same video/zip member.
         source_for_ffmpeg: Path | None = None
         if audio_spec:
-            materialized = self.materialize_path(audio_spec, sample_cache, preferred_name="audio_src")
+            materialized = self.materialize_path(
+                audio_spec, sample_cache, preferred_name="audio_src"
+            )
             if materialized is not None:
                 if materialized.suffix.lower() in {".wav", ".flac", ".mp3", ".ogg"}:
                     shutil.copy2(materialized, out_wav)
@@ -321,7 +320,9 @@ def read_meld_utterance(csv_path: Path, dialogue_id: int, utterance_id: int) -> 
                 text = row.get("Utterance") or row.get("utterance") or row.get("text") or ""
                 return str(text).strip()
     raise KeyError(
-        f"MELD utterance not found Dialogue_ID={dialogue_id} Utterance_ID={utterance_id} in {csv_path}"
+        "MELD utterance not found "
+        f"Dialogue_ID={dialogue_id} Utterance_ID={utterance_id} "
+        f"in {csv_path}"
     )
 
 
